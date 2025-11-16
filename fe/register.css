@@ -1,0 +1,84 @@
+/* Reset cơ bản */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #005f99, #003f66);
+  color: #f0f8ff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+.register-container {
+  background-color: #0a3d66;
+  padding: 40px 30px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+  width: 100%;
+  max-width: 420px;
+}
+.register-container h2 {
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 28px;
+  color: #b3d4fc;
+}
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 14px;
+}
+input[type="email"],
+input[type="password"],
+input[type="text"],
+select {
+  width: 100%;
+  padding: 12px 15px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 16px;
+  background-color: #025a9c;
+  color: #f0f8ff;
+  outline: none;
+  transition: background-color 0.3s ease;
+}
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="text"]:focus,
+select:focus {
+  background-color: #0277bd;
+}
+select {
+  cursor: pointer;
+}
+button {
+  width: 100%;
+  padding: 14px 0;
+  background: linear-gradient(90deg, #3a95ff, #004f9e);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+button:hover {
+  background: linear-gradient(90deg, #0054cc, #003366);
+}
+.footer-text {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 14px;
+  color: #a9c9ff;
+}
+.footer-text a {
+  color: #f0f8ff;
+  text-decoration: underline;
+  font-weight: 600;
+}
