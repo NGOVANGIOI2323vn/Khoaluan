@@ -28,5 +28,11 @@ public interface HotelServiceImpl {
                                                         MultipartFile hotelImage);
 
     ResponseEntity<Apireponsi<HotelEntity>> getHotelById(Long id);
+
+    ResponseEntity<Apireponsi<HotelEntity>> softDeleteHotel(Long id);
+    
+    ResponseEntity<Apireponsi<com.example.KLTN.dto.HotelPageResponse>> findHotelsWithFilters(
+        com.example.KLTN.dto.HotelFilterRequest filterRequest
+    );
 }
 

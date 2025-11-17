@@ -1,5 +1,6 @@
 package com.example.KLTN.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -13,6 +14,7 @@ public class RegisterUserDto {
     private String username;
     @NotBlank(message = "Phone không được để trống")
     @Size(min = 9, max = 10, message = "Phone từ 9 đến 10 ký tự")
+    @JsonProperty("Phone")
     private String Phone;
 
     @NotBlank(message = "Email không được để trống")

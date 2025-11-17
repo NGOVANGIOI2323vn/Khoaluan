@@ -17,5 +17,7 @@ public interface HotelReviewServiceImpl {
 //    ResponseEntity<Apireponsi<List<HotelReviewEntity>>> findAllHotelReviewByHotel(Long id_hotel);
 
     ResponseEntity<Apireponsi<String>> deleteHotelReviewById(Long id);
+
+    ResponseEntity<Apireponsi<List<HotelReviewEntity>>> getReviewsByHotelId(Long hotelId);
 }
       

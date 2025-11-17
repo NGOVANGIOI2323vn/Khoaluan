@@ -16,7 +16,6 @@ public class Apireponsi<T> {
         this.message = message;
         this.data = data;
         this.errorCode = errorCode;
-        this.timestamp = this.timestamp;
     }
 
     public String getStatus() {

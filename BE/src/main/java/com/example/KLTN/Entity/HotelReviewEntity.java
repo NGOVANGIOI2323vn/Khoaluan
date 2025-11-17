@@ -1,8 +1,6 @@
 package com.example.KLTN.Entity;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -17,26 +15,28 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-//@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
-
 public class HotelReviewEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JsonBackReference
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "bookings", "wallet", "role"})
     @JoinColumn(name = "user_id", nullable = false)
     private UsersEntity user;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "rooms", "owner", "bookings"})
     @JoinColumn(name = "hotel_id", nullable = false)
     private HotelEntity hotel;
+    
     @Min(1)
     @Max(5)
     private int rating; // 1-5 sao
+    
     @Column(length = 1000)
     private String comment;
 
+    @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 }

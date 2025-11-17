@@ -5,7 +5,7 @@ import lombok.*;
 
 
 @Entity
-@Table(name = "Roles")
+@Table(name = "Roles", uniqueConstraints = @UniqueConstraint(columnNames = "name"))
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -14,6 +14,6 @@ public class RoleEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(nullable = true)
+    @Column(nullable = false, unique = true)
     private String name;
 }

@@ -25,15 +25,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private final JwtUtill jwtUtil;
     // ✅ biến static lưu tạm token
     public static String latestJwtToken;
-    private final WalletService wallettService;
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) {
         OAuth2User oAuth2User = super.loadUser(userRequest);
         String email = oAuth2User.getAttribute("email");
         String name = oAuth2User.getAttribute("name");
-        System.out.println("email:" + email);
-        System.out.println("name:" + name);
         if (email == null || email.isBlank()) {
             throw new RuntimeException("Không thể lấy email từ tài khoản Google. Vui lòng bật quyền truy cập email.");
         }
@@ -63,7 +60,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         // ✅ Sinh token và lưu tạm
         String token = jwtUtil.generateToken(user.getUsername());
         latestJwtToken = token;
-        System.out.println("✅ GOOGLE TOKEN: " + token);
 
         return oAuth2User;
     }

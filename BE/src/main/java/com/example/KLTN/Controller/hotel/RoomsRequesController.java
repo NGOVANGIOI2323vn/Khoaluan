@@ -14,37 +14,37 @@
     public class RoomsRequesController {
         private final RoomsService roomsService;
 
-        @PutMapping("/Image/{id}")
+        @PutMapping("/{id}/image")
         public ResponseEntity<Apireponsi<RoomsEntity>> updateImage(@PathVariable("id") Long id,
                                                                    @RequestParam("image") MultipartFile imageRooms) {
             return roomsService.UpdateImage(id, imageRooms);
         }
 
-        @PutMapping("/Price/{id}")
-        public ResponseEntity<Apireponsi<RoomsEntity>> UpdatePrice(@PathVariable("id") Long id,
+        @PutMapping("/{id}/price")
+        public ResponseEntity<Apireponsi<RoomsEntity>> updatePrice(@PathVariable("id") Long id,
                                                                    @RequestParam("price") double price) {
             return roomsService.UpdatePrice(id, price);
         }
 
-        @PutMapping("/status/{id}")
-        public ResponseEntity<Apireponsi<RoomsEntity>> update_status(@PathVariable("id") Long id,
+        @PutMapping("/{id}/status")
+        public ResponseEntity<Apireponsi<RoomsEntity>> updateStatus(@PathVariable("id") Long id,
                                                                      @RequestParam("status") RoomsEntity.Status status) {
             return roomsService.updatestatus(id, status);
         }
 
-        @PutMapping("/type/{id}")
+        @PutMapping("/{id}/type")
         public ResponseEntity<Apireponsi<RoomsEntity>> updateType(@PathVariable("id") Long id,
                                                                   @RequestParam("type") RoomsEntity.RoomType type) {
             return roomsService.updateType(id, type);
         }
 
-        @PutMapping("/discount_percent/{id}")
-        public ResponseEntity<Apireponsi<RoomsEntity>> update_discount_percent(@PathVariable("id") Long id,
+        @PutMapping("/{id}/discount")
+        public ResponseEntity<Apireponsi<RoomsEntity>> updateDiscount(@PathVariable("id") Long id,
                                                                                @RequestParam("discount_percent") double discount_percent) {
             return roomsService.updatediscount_percent(id, discount_percent);
         }
 
-        @PutMapping("/capacity/{id}")
+        @PutMapping("/{id}/capacity")
         public ResponseEntity<Apireponsi<RoomsEntity>> updateCapacity(@PathVariable("id") Long id,
                                                                       @RequestParam("capacity") Integer capacity) {
             return roomsService.updatecapacity(id, capacity);

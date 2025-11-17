@@ -18,7 +18,6 @@ public class Autocheck {
 
     @Scheduled(fixedRate = 60000)
     public void checkrating() {
-        System.out.println("Checking rating");
         try {
             List<HotelEntity> listHotel = hotelService.findAllHotels();
             for (HotelEntity hotel : listHotel) {
@@ -43,6 +42,6 @@ public class Autocheck {
                 hotelService.saveHotel(hotel); // lưu vào DB
             }
         } }catch (Exception e) {
-            System.out.println("Error in checkRating: " + e.getMessage());
+            System.err.println("Error in checkRating: " + e.getMessage());
         }
 }}

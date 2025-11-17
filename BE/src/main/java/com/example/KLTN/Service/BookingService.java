@@ -17,11 +17,10 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +31,6 @@ public class BookingService implements BookingServiceImpl {
     private final HttpResponseUtil httpResponseUtil;
     private final UserService userService;
     private final RoomsService roomsService;
-    private final HotelService hotelService;
     private final QrCodeService qrCodeService;
     private final PaymentResultRepository paymentResultRepository;
     private final WalletTransactionService walletTransactionService;
@@ -73,7 +71,7 @@ public class BookingService implements BookingServiceImpl {
             walletTransactionService.CreateWalletTransactionUUser(user, muoney, "Thanh Toán Bookinng", WalletTransactionEntity.TransactionType.PAYMENT);
             // Nội dung QR code: toàn bộ thông tin booking
             String qrFileName = "qr_booking_" + booking.getId();
-            Path qrFilePath = qrCodeService.generateQrToFile(this.createContentQr(user, booking), qrFileName);
+            qrCodeService.generateQrToFile(this.createContentQr(user, booking), qrFileName);
             // Lưu đường dẫn QR vào DB
             booking.setQrUrl("/uploads/qr/" + qrFileName + ".png");
             bookingRepository.save(booking);
@@ -128,37 +126,118 @@ public class BookingService implements BookingServiceImpl {
             if (user == null) {
                 return httpResponseUtil.notFound("User not found");
             }
+            
             RoomsEntity rooms = roomsService.findRoomById(id);
             if (rooms == null) {
                 return httpResponseUtil.notFound("Room not found");
             }
+            
             HotelEntity hotel = rooms.getHotel();
             if (hotel == null) {
                 return httpResponseUtil.notFound("Hotel not found");
             }
+            
             if (hotel.getStatus().equals(HotelEntity.Status.pending)) {
-                return httpResponseUtil.notFound("Hotel Chưa được phép kinh doanh");
+                return httpResponseUtil.badRequest("Hotel Chưa được phép kinh doanh");
             }
-            long days = ChronoUnit.DAYS.between(dto.getCheckInDate(), dto.getCheckOutDate());
+            
+            // Validate dates
+            LocalDate today = LocalDate.now();
+            LocalDate checkIn = dto.getCheckInDate();
+            LocalDate checkOut = dto.getCheckOutDate();
+            
+            // Kiểm tra check-in phải từ tương lai (ít nhất là hôm nay)
+            if (checkIn == null) {
+                return httpResponseUtil.badRequest("Ngày check-in không được để trống");
+            }
+            if (checkIn.isBefore(today)) {
+                return httpResponseUtil.badRequest("Ngày check-in phải từ hôm nay trở đi, không được là ngày quá khứ");
+            }
+            
+            // Kiểm tra check-out phải sau check-in
+            if (checkOut == null) {
+                return httpResponseUtil.badRequest("Ngày check-out không được để trống");
+            }
+            if (checkOut.isBefore(checkIn) || checkOut.isEqual(checkIn)) {
+                return httpResponseUtil.badRequest("Ngày check-out phải sau ngày check-in");
+            }
+            
+            // Kiểm tra phòng có available không (status = AVAILABLE)
+            if (rooms.getStatus() != RoomsEntity.Status.AVAILABLE) {
+                return httpResponseUtil.badRequest("Phòng này hiện không khả dụng (đang bảo trì hoặc đã được đặt)");
+            }
+            
+            // Kiểm tra phòng có bị book trong khoảng thời gian này không
+            Long bookingCount = bookingRepository.countBookingsForRoomInDateRange(
+                rooms.getId(), 
+                checkIn, 
+                checkOut
+            );
+            
+            if (bookingCount != null && bookingCount > 0) {
+                return httpResponseUtil.badRequest(
+                    "Phòng này đã được đặt trong khoảng thời gian từ " + checkIn + " đến " + checkOut + 
+                    ". Vui lòng chọn khoảng thời gian khác hoặc phòng khác."
+                );
+            }
+            
+            // Tính số ngày và giá
+            long days = ChronoUnit.DAYS.between(checkIn, checkOut);
             if (days <= 0) {
                 days = 1;
             }
+            
             Double payment = rooms.getPrice() - (rooms.getPrice() * rooms.getDiscountPercent());
             payment *= days;
             BigDecimal paymentBigDecimal = new BigDecimal(payment);
+            
+            // Tạo booking
             BookingEntity booking = new BookingEntity();
             booking.setRooms(rooms);
             booking.setHotel(hotel);
             booking.setUser(user);
             booking.setBookingDate(LocalDateTime.now());
-            booking.setCheckInDate(dto.getCheckInDate());
-            booking.setCheckOutDate(dto.getCheckOutDate());
+            booking.setCheckInDate(checkIn);
+            booking.setCheckOutDate(checkOut);
             booking.setTotalPrice(paymentBigDecimal);
             booking.setStatus(BookingEntity.BookingStatus.PENDING);
+            
             bookingRepository.save(booking);
-            return httpResponseUtil.created("Create booking Sucsess", booking);
+            
+            return httpResponseUtil.created("Đặt phòng thành công", booking);
         } catch (Exception e) {
-            return httpResponseUtil.error("Error Create Booking ", e);
+            System.err.println("Error creating booking: " + e.getMessage());
+            e.printStackTrace();
+            return httpResponseUtil.error("Lỗi khi đặt phòng: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public ResponseEntity<Apireponsi<List<BookingEntity>>> getBookingHistoryByUser() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String username = authentication.getName();
+            UsersEntity user = userService.FindByUsername(username);
+            if (user == null) {
+                return httpResponseUtil.notFound("User not found");
+            }
+            List<BookingEntity> bookings = bookingRepository.findByUserOrderByBookingDateDesc(user);
+
+            return httpResponseUtil.ok("Get booking history success", bookings);
+        } catch (Exception e) {
+            System.err.println("Error getting booking history: " + e.getMessage());
+            e.printStackTrace();
+            return httpResponseUtil.error("Get booking history error", e);
+        }
+    }
+    
+    // Lấy bookings của một room
+    public ResponseEntity<Apireponsi<List<BookingEntity>>> getBookingsByRoom(Long roomId) {
+        try {
+            List<BookingEntity> bookings = bookingRepository.findByRoomId(roomId);
+            return httpResponseUtil.ok("Get bookings by room success", bookings);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error getting bookings by room", e);
         }
     }
 }

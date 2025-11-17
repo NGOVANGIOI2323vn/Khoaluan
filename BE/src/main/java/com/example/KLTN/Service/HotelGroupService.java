@@ -1,6 +1,5 @@
 package com.example.KLTN.Service;
 
-import com.example.KLTN.Entity.HotelEntity;
 import com.example.KLTN.Entity.HotelGroupEntity;
 import com.example.KLTN.Repository.HotelGroupRepository;
 import com.example.KLTN.Service.Impl.HotelGroupServiceImpl;

@@ -8,24 +8,36 @@ import com.example.KLTN.Service.withdrawhistoryService;
 import com.example.KLTN.dto.withDrawDTO;
 import com.example.KLTN.Entity.withDrawHistoryEntity;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/api/withdraw")
+@RequestMapping("/api/withdraws")
 @RequiredArgsConstructor
 public class withdrawmoneyController {
     private final withdrawhistoryService withdrawhistoryService;
 
-    @PostMapping("/create")
+    @PostMapping
     public ResponseEntity<Apireponsi<withDrawHistoryEntity>> create(@RequestBody withDrawDTO dto) {
         return withdrawhistoryService.createWithdraw(dto);
     }
 
-    @PutMapping("/approve/{id}")
+    @PutMapping("/{id}/approve")
     public ResponseEntity<Apireponsi<withDrawHistoryEntity>> approve(@PathVariable Long id) {
         return withdrawhistoryService.approveWithdraw(id);
     }
 
-    @PutMapping("/reject/{id}")
+    @PutMapping("/{id}/reject")
     public ResponseEntity<Apireponsi<withDrawHistoryEntity>> reject(@PathVariable Long id) {
         return withdrawhistoryService.rejectWithdraw(id);
+    }
+    
+    @GetMapping
+    public ResponseEntity<Apireponsi<List<withDrawHistoryEntity>>> getAllWithdraws() {
+        return withdrawhistoryService.getAllWithdraws();
+    }
+    
+    @GetMapping("/my-withdraws")
+    public ResponseEntity<Apireponsi<List<withDrawHistoryEntity>>> getMyWithdraws() {
+        return withdrawhistoryService.getMyWithdraws();
     }
 }

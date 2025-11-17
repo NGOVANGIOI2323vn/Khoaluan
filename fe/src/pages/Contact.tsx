@@ -1,0 +1,359 @@
+import React, { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import Header from '../components/Header'
+import GoogleMapComponent from '../components/GoogleMap'
+import { useToast } from '../hooks/useToast'
+import { infoService } from '../services/infoService'
+import type { ContactInfo, FAQ, Office } from '../services/infoService'
+
+const Contact = () => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    message: '',
+  })
+  const [showFAQs, setShowFAQs] = useState<number | null>(null)
+  const [contactInfo, setContactInfo] = useState<ContactInfo[]>([])
+  const [faqs, setFaqs] = useState<FAQ[]>([])
+  const [offices, setOffices] = useState<Office[]>([])
+  const [selectedOffice, setSelectedOffice] = useState<Office | null>(null)
+  const [loading, setLoading] = useState(true)
+  const { showSuccess, showError } = useToast()
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const [contactRes, faqsRes, officesRes] = await Promise.all([
+          infoService.getContactInfo(),
+          infoService.getFAQs(),
+          infoService.getOffices(),
+        ])
+        if (contactRes.data) setContactInfo(contactRes.data)
+        if (faqsRes.data) setFaqs(faqsRes.data)
+        if (officesRes.data) {
+          setOffices(officesRes.data)
+          if (officesRes.data.length > 0) {
+            setSelectedOffice(officesRes.data[0])
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load contact data', error)
+        showError('Không thể tải dữ liệu liên hệ')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [showError])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const response = await infoService.createContactMessage(formData)
+      if (response.data) {
+        showSuccess('Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi trong vòng 24 giờ.')
+        setFormData({ name: '', email: '', phone: '', message: '' })
+      }
+    } catch {
+      showError('Có lỗi xảy ra khi gửi tin nhắn. Vui lòng thử lại sau.')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-white">
+      <Header />
+
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 text-white py-12 md:py-16 overflow-hidden">
+        <motion.div
+          className="absolute inset-0 opacity-10"
+          animate={{
+            backgroundPosition: ['0% 0%', '100% 100%'],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            repeatType: 'reverse',
+          }}
+          style={{
+            backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+            backgroundSize: '60px 60px',
+          }}
+        />
+        <div className="max-w-7xl mx-auto px-4 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-center"
+          >
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">Liên hệ với chúng tôi</h1>
+            <p className="text-xl opacity-90">
+              Chúng tôi luôn sẵn sàng hỗ trợ bạn 24/7
+            </p>
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-12 md:py-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12">
+          {/* Contact Form */}
+          <motion.div
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            className="bg-white rounded-xl shadow-lg p-6 md:p-8"
+          >
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">
+              Gửi tin nhắn cho chúng tôi
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">Họ và tên</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition"
+                  placeholder="Nhập họ và tên"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">Email</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition"
+                  placeholder="Nhập email"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">Số điện thoại</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition"
+                  placeholder="Nhập số điện thoại"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">Tin nhắn</label>
+                <textarea
+                  value={formData.message}
+                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  rows={5}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition resize-none"
+                  placeholder="Nhập tin nhắn của bạn"
+                  required
+                />
+              </div>
+              <motion.button
+                type="submit"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition shadow-lg"
+              >
+                Gửi tin nhắn
+              </motion.button>
+            </form>
+          </motion.div>
+
+          {/* Contact Information */}
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="space-y-6"
+          >
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">
+                Thông tin liên hệ
+              </h2>
+              <div className="space-y-4">
+                {loading ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Đang tải thông tin liên hệ...</p>
+                  </div>
+                ) : contactInfo.length > 0 ? (
+                  contactInfo.map((info, index) => (
+                    <motion.a
+                      key={info.id}
+                      href={info.link || '#'}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 + index * 0.1 }}
+                      whileHover={{ scale: 1.02, x: 5 }}
+                      className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg hover:bg-blue-50 transition group"
+                    >
+                    <motion.span
+                      className="text-3xl"
+                      animate={{
+                        rotate: [0, 10, -10, 0],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        delay: info.id * 0.3,
+                      }}
+                    >
+                      {info.type === 'email' ? '📧' : info.type === 'phone' ? '📞' : info.type === 'address' ? '📍' : '🕒'}
+                    </motion.span>
+                    <div>
+                      <h3 className="font-semibold text-gray-800 mb-1">{info.title}</h3>
+                      <p className="text-gray-600">{info.content}</p>
+                    </div>
+                  </motion.a>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Chưa có thông tin liên hệ</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Offices */}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">Văn phòng</h2>
+              <div className="space-y-3">
+                {loading ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Đang tải thông tin văn phòng...</p>
+                  </div>
+                ) : offices.length > 0 ? (
+                  offices.map((office, index) => (
+                    <motion.button
+                      key={office.id}
+                      onClick={() => setSelectedOffice(office)}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 + index * 0.1 }}
+                      whileHover={{ scale: 1.02 }}
+                      className={`w-full p-4 rounded-lg text-left transition ${
+                        selectedOffice?.id === office.id
+                          ? 'bg-blue-50 border-2 border-blue-600'
+                          : 'bg-gray-50 hover:bg-gray-100'
+                      }`}
+                    >
+                      <h3 className="font-semibold text-gray-800 mb-2">{office.name}</h3>
+                      <p className="text-sm text-gray-600 mb-1">📍 {office.address}</p>
+                      <p className="text-sm text-gray-600 mb-1">📞 {office.phone}</p>
+                      <p className="text-sm text-gray-600 mb-1">📧 {office.email}</p>
+                      {office.hours && <p className="text-sm text-gray-600">🕒 {office.hours}</p>}
+                    </motion.button>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Chưa có thông tin văn phòng</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Google Map Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="mt-8"
+        >
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            {selectedOffice ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    Vị trí: {selectedOffice.name}
+                  </h2>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${selectedOffice.latitude},${selectedOffice.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline text-sm"
+                  >
+                    Mở trong Google Maps →
+                  </a>
+                </div>
+                <GoogleMapComponent
+                  center={{ lat: selectedOffice.latitude, lng: selectedOffice.longitude }}
+                  zoom={15}
+                  height="500px"
+                  address={selectedOffice.address}
+                />
+              </>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <p>Đang tải thông tin văn phòng...</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* FAQs Section */}
+        <div className="mt-16">
+          <motion.h2
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+            className="text-3xl font-bold text-center text-gray-800 mb-8"
+          >
+            Câu hỏi thường gặp
+          </motion.h2>
+          <div className="max-w-3xl mx-auto space-y-4">
+            {loading ? (
+              <div className="text-center py-12 text-gray-500">
+                <p>Đang tải câu hỏi thường gặp...</p>
+              </div>
+            ) : faqs.length > 0 ? (
+              faqs.map((faq, index) => (
+                <motion.div
+                  key={faq.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 + index * 0.1 }}
+                  className="bg-white rounded-lg shadow-md overflow-hidden"
+                >
+                  <button
+                    onClick={() => setShowFAQs(showFAQs === faq.id ? null : faq.id)}
+                    className="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition"
+                  >
+                    <span className="font-semibold text-gray-800">{faq.question}</span>
+                    <motion.span
+                      animate={{ rotate: showFAQs === faq.id ? 180 : 0 }}
+                      className="text-blue-600"
+                    >
+                      ▼
+                    </motion.span>
+                  </button>
+                  {showFAQs === faq.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="px-4 pb-4 text-gray-600"
+                    >
+                      {faq.answer}
+                    </motion.div>
+                  )}
+                </motion.div>
+              ))
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <p>Chưa có câu hỏi thường gặp</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Contact
