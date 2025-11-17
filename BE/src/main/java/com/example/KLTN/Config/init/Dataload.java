@@ -36,7 +36,6 @@ public class  Dataload implements ApplicationRunner {
             RoleEntity role3 = new RoleEntity();
             role3.setName("USER");
             roleService.SaveRole(role3);
-            System.out.println("✅ created roles: ADMIN / OWNER / USER");
         }
         if (!userService.Exists("admin")) {
             RoleEntity role = roleService.finByRolename("ADMIN");
@@ -49,7 +48,6 @@ public class  Dataload implements ApplicationRunner {
             admin.setRole(role); // gán role ADMIN
             admin.setPhone("0965160610");
             userService.SaveUser(admin);
-            System.out.println("✅ created default admin user");
 
 
         }

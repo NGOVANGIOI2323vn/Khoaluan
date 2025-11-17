@@ -8,21 +8,33 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/api/booking")
+@RequestMapping("/api/bookings")
 @RequiredArgsConstructor
 public class BookingController {
 
     private final BookingService bookingService;
-//    private final String NGROK_PUBLIC_URL = "https://burly-daintily-etha.ngrok-free.dev";
-    @PostMapping("create/{id}")
+
+    @PostMapping("/rooms/{roomId}")
     public ResponseEntity<Apireponsi<BookingEntity>> createBooking(@RequestBody BookingCreateDTO dto,
-                                                                   @PathVariable("id") Long id) {
-        return bookingService.createBooking(id, dto);
+                                                                   @PathVariable("roomId") Long roomId) {
+        return bookingService.createBooking(roomId, dto);
     }
 
-        @PutMapping("/pay/{id}")
+    @PutMapping("/{id}/pay")
     public ResponseEntity<Apireponsi<BookingEntity>> payBooking(@PathVariable Long id) {
         return bookingService.payBooking(id);
+    }
+
+    @GetMapping
+    public ResponseEntity<Apireponsi<List<BookingEntity>>> getBookingHistory() {
+        return bookingService.getBookingHistoryByUser();
+    }
+    
+    @GetMapping("/rooms/{roomId}")
+    public ResponseEntity<Apireponsi<List<BookingEntity>>> getBookingsByRoom(@PathVariable Long roomId) {
+        return bookingService.getBookingsByRoom(roomId);
     }
 }

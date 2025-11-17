@@ -7,17 +7,24 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/api/hotel")
+@RequestMapping("/api/hotels")
 @RequiredArgsConstructor
 public class CommentController {
     private final HotelReviewService hotelReviewService;
 
-    @PostMapping("/ceateComment")
-    public ResponseEntity<Apireponsi<HotelReviewEntity>> createComment(@RequestParam("id") Long id,
+    @PostMapping("/{id}/reviews")
+    public ResponseEntity<Apireponsi<HotelReviewEntity>> createReview(@PathVariable("id") Long id,
                                                                        @RequestParam("comment") String comment,
                                                                        @RequestParam("rating") int rating
     ) {
         return hotelReviewService.createHotelReview(id, rating, comment);
+    }
+
+    @GetMapping("/{id}/reviews")
+    public ResponseEntity<Apireponsi<List<HotelReviewEntity>>> getReviewsByHotelId(@PathVariable Long id) {
+        return hotelReviewService.getReviewsByHotelId(id);
     }
 }

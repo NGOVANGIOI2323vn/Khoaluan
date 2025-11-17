@@ -28,3 +28,14 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# JDK compatibility helper files
+.mvn/jvm.config
+.mvn/maven.config
+run.sh
+setup-java17.sh
+javac-wrapper.sh
+README_FIX.md
+README_SUCCESS.md
+pom.xml
+.envrc

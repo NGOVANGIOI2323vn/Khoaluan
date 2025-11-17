@@ -10,6 +10,8 @@ import com.example.KLTN.dto.Apireponsi;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -110,6 +112,27 @@ public class Booking_transactionsService implements Booking_transactionsServiceI
 
         } catch (Exception e) {
             return httpResponseUtil.error("Error", e);
+        }
+    }
+    
+    // Lấy transactions của owner hiện tại
+    public ResponseEntity<Apireponsi<List<Booking_transactionsEntity>>> getMyTransactions() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+                return httpResponseUtil.badRequest("User not authenticated");
+            }
+            
+            String username = auth.getName();
+            UsersEntity owner = userService.FindByUsername(username);
+            if (owner == null) {
+                return httpResponseUtil.notFound("Owner not found");
+            }
+            
+            List<Booking_transactionsEntity> transactions = booking_transactionsRepository.findByOwnerId(owner.getId());
+            return httpResponseUtil.ok("Get my transactions success", transactions);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error getting my transactions", e);
         }
     }
 }

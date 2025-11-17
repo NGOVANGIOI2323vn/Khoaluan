@@ -1,13 +1,10 @@
 package com.example.KLTN.Service;
 
-import com.example.KLTN.Config.HTTPstatus.HttpResponseUtil;
 import com.example.KLTN.Entity.UsersEntity;
 import com.example.KLTN.Entity.WalletTransactionEntity;
 import com.example.KLTN.Repository.WalletTransactionRepository;
 import com.example.KLTN.Service.Impl.WalletTransactionServiceImpl;
-import com.example.KLTN.dto.Apireponsi;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -27,7 +24,6 @@ public class WalletTransactionService implements WalletTransactionServiceImpl {
     }
 
     private final WalletTransactionRepository walletTransactionRepository;
-    private final HttpResponseUtil httpResponseUtil;
 
 
     @Override

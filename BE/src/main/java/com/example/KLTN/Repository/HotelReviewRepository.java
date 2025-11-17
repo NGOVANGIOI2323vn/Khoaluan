@@ -4,7 +4,6 @@ import com.example.KLTN.Entity.HotelEntity;
 import com.example.KLTN.Entity.HotelReviewEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -21,7 +20,7 @@ public interface HotelReviewRepository extends JpaRepository<HotelReviewEntity, 
     public List<HotelReviewEntity> findAllHotelReviews5();
 
 
-    // Lấy review kèm user, tránh LazyInitializationException
-    @Query("SELECT r FROM HotelReviewEntity r JOIN FETCH r.user WHERE r.hotel = :hotel")
+    // Lấy review kèm user, tránh LazyInitializationException, sắp xếp theo thời gian mới nhất
+    @Query("SELECT r FROM HotelReviewEntity r JOIN FETCH r.user WHERE r.hotel = :hotel ORDER BY r.createdAt DESC")
     List<HotelReviewEntity> findAllHotelReviews6(@Param("hotel") HotelEntity hotel);
 }

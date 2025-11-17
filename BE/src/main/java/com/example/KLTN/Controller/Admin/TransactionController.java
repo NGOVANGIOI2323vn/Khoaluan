@@ -10,23 +10,28 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/admin/transaction")
+@RequestMapping("/api/admin/transactions")
 @RequiredArgsConstructor
 public class TransactionController {
     private final Booking_transactionsService booking_transactionsService;
 
-    @PutMapping("/setTransaction/{id}")
-    public ResponseEntity<Apireponsi<Booking_transactionsEntity>> setTransaction(@PathVariable Long id) {
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<Apireponsi<Booking_transactionsEntity>> approveTransaction(@PathVariable Long id) {
         return booking_transactionsService.setSatus(id);
     }
 
-    @GetMapping("/getAll")
+    @GetMapping
     public ResponseEntity<Apireponsi<List<Booking_transactionsEntity>>> getAllTransactions() {
         return booking_transactionsService.findAllBooking_transactionsById();
     }
 
-    @GetMapping("/get/{id}")
+    @GetMapping("/{id}")
     public ResponseEntity<Apireponsi<Booking_transactionsEntity>> getTransaction(@PathVariable Long id) {
         return booking_transactionsService.findBooking_transactionsById(id);
+    }
+    
+    @GetMapping("/owner/my-transactions")
+    public ResponseEntity<Apireponsi<List<Booking_transactionsEntity>>> getMyTransactions() {
+        return booking_transactionsService.getMyTransactions();
     }
 }

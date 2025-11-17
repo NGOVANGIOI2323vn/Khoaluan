@@ -11,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -24,8 +23,8 @@ public class RoomsService implements RoomsServiceImpl {
             if (rooms == null) {
                 return httpResponseUtil.notFound("rooms Null");
             }
-            if (capacity >= 0) {
-                return httpResponseUtil.notFound("capacity Null");
+            if (capacity == null || capacity < 0) {
+                return httpResponseUtil.notFound("capacity invalid");
             }
             rooms.setCapacity(capacity);
             this.saveRooms(rooms);
@@ -168,11 +167,21 @@ public class RoomsService implements RoomsServiceImpl {
 
     @Override
     public RoomsEntity findRoomById(Long id) {
-        return roomsRepository.findById(id).orElse(null);
+        return roomsRepository.findActiveRoomById(id).orElse(null);
     }
 
     @Override
     public void saveRooms(RoomsEntity rooms) {
         roomsRepository.save(rooms);
+    }
+
+    @Override
+    public ResponseEntity<Apireponsi<List<RoomsEntity>>> getRoomsByHotelId(Long hotelId) {
+        try {
+            List<RoomsEntity> rooms = roomsRepository.findActiveRoomsByHotelId(hotelId);
+            return httpResponseUtil.ok("Get rooms by hotel ID success", rooms);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Get rooms by hotel ID error", e);
+        }
     }
 }

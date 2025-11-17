@@ -1,13 +1,10 @@
 package com.example.KLTN.Controller.Auth;
 
-import com.example.KLTN.Config.HTTPstatus.HttpResponseUtil;
-import com.example.KLTN.Config.config.JwtUtill;
-import com.example.KLTN.Config.Email.EmailCl;
-import com.example.KLTN.Service.*;
+import com.example.KLTN.Service.AuthService;
+import com.example.KLTN.Service.CustomOAuth2UserService;
 import com.example.KLTN.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
@@ -16,14 +13,6 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class authController {
-    private final UserService userService;
-    private final RoleService roleService;
-    private final JwtUtill jwtUtil;
-    private final EmailCl emailUtil;
-    private final AuthenticationManager authenticationManager;
-    private final HttpResponseUtil responseUtil;
-    private final WalletService wallettService;
-    private final HttpResponseUtil  httpResponseUtil;
     private final AuthService authService;
 
 
@@ -34,19 +23,19 @@ public class authController {
     }
 
     // Đăng ký owner
-    @PostMapping("/registerOwner")
+    @PostMapping("/register/owner")
     public ResponseEntity<?> registerOwner(@RequestBody RegisterUserDto dto) {
         return authService.registerUser(dto, "OWNER");
     }
 
     // Gửi OTP
-    @PostMapping("/send-otp")
+    @PostMapping("/otp/send")
     public ResponseEntity<?> sendOtp(@RequestParam String email) {
         return authService.sendOtp(email);
     }
 
     // Xác thực OTP
-    @PostMapping("/verify-otp")
+    @PostMapping("/otp/verify")
     public ResponseEntity<?> verifyOtp(@RequestBody VerifyDTO dto) {
         return authService.verifyOtp(dto);
     }

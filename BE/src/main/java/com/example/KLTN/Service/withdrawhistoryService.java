@@ -128,4 +128,40 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
     public List<withDrawHistoryEntity> findAllWithdrawHistory() {
         return withdrawRepository.findAll();
     }
+    
+    // Lấy tất cả withdraws (cho admin)
+    public ResponseEntity<Apireponsi<List<withDrawHistoryEntity>>> getAllWithdraws() {
+        try {
+            List<withDrawHistoryEntity> withdraws = this.findAllWithdrawHistory();
+            return httpResponseUtil.ok("Get all withdraws success", withdraws);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error getting all withdraws", e);
+        }
+    }
+    
+    // Lấy withdraws của user hiện tại
+    public ResponseEntity<Apireponsi<List<withDrawHistoryEntity>>> getMyWithdraws() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+                return httpResponseUtil.badRequest("User not authenticated");
+            }
+            
+            String username = auth.getName();
+            UsersEntity user = userService.FindByUsername(username);
+            if (user == null) {
+                return httpResponseUtil.notFound("User not found");
+            }
+            
+            WalletsEntity wallet = wallettService.GetWallet(user);
+            if (wallet == null) {
+                return httpResponseUtil.notFound("Wallet not found");
+            }
+            
+            List<withDrawHistoryEntity> withdraws = withdrawRepository.findByWalletsEntityId(wallet.getId());
+            return httpResponseUtil.ok("Get my withdraws success", withdraws);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error getting my withdraws", e);
+        }
+    }
 }

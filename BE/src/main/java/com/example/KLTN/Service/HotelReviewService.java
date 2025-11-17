@@ -7,7 +7,6 @@ import com.example.KLTN.Entity.UsersEntity;
 import com.example.KLTN.Repository.HotelReviewRepository;
 import com.example.KLTN.Service.Impl.HotelReviewServiceImpl;
 import com.example.KLTN.dto.Apireponsi;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -71,5 +70,19 @@ public class HotelReviewService implements HotelReviewServiceImpl {
     @Override
     public ResponseEntity<Apireponsi<String>> deleteHotelReviewById(Long id) {
         return null;
+    }
+
+    @Override
+    public ResponseEntity<Apireponsi<List<HotelReviewEntity>>> getReviewsByHotelId(Long hotelId) {
+        try {
+            HotelEntity hotel = hotelService.findHotelById(hotelId);
+            if (hotel == null) {
+                return httpResponseUtil.notFound("Hotel not found");
+            }
+            List<HotelReviewEntity> reviews = this.findHotelReviewById(hotel);
+            return httpResponseUtil.ok("Get reviews by hotel ID success", reviews);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Get reviews by hotel ID error", e);
+        }
     }
 }

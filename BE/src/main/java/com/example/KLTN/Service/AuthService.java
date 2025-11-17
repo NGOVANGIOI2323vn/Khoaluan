@@ -8,6 +8,7 @@ import com.example.KLTN.Entity.UsersEntity;
 import com.example.KLTN.Entity.WalletsEntity;
 import com.example.KLTN.Service.Impl.AuthServiceImpl;
 import com.example.KLTN.dto.Apireponsi;
+import com.example.KLTN.dto.LoginResponseDTO;
 import com.example.KLTN.dto.RegisterUserDto;
 import com.example.KLTN.dto.VerifyDTO;
 import com.example.KLTN.dto.authRequesDTO;
@@ -38,26 +39,49 @@ public class AuthService implements AuthServiceImpl {
     // ===================== REGISTER USER =====================
     public ResponseEntity<Apireponsi<UsersEntity>> registerUser(RegisterUserDto dto, String roleName) {
         try {
+            // Validate input
+            if (dto.getUsername() == null || dto.getUsername().trim().isEmpty()) {
+                return responseUtil.badRequest("Username không được để trống");
+            }
+            if (dto.getEmail() == null || dto.getEmail().trim().isEmpty()) {
+                return responseUtil.badRequest("Email không được để trống");
+            }
+            if (dto.getPassword() == null || dto.getPassword().trim().isEmpty()) {
+                return responseUtil.badRequest("Password không được để trống");
+            }
+            String phone = dto.getPhone();
+            if (phone == null || phone.trim().isEmpty()) {
+                return responseUtil.badRequest("Phone không được để trống");
+            }
+            
+            // Check if username exists
             if (userService.Exists(dto.getUsername())) {
                 return responseUtil.conflict("Username đã tồn tại");
             }
+            
+            // Check if email exists
             if (userService.ExistsEmail(dto.getEmail())) {
                 return responseUtil.conflict("Email đã tồn tại");
             }
+            
+            // Get role
             RoleEntity role = roleService.finByRolename(roleName);
             if (role == null) {
-                return responseUtil.badRequest("ROLE không tồn tại");
+                return responseUtil.badRequest("ROLE không tồn tại: " + roleName);
             }
 
+            // Create user
             UsersEntity user = new UsersEntity();
             user.setUsername(dto.getUsername());
             user.setPassword(jwtUtil.passwordEncoder().encode(dto.getPassword()));
             user.setEmail(dto.getEmail());
-            user.setPhone(dto.getPhone());
+            user.setPhone(phone); // Use the validated phone variable
             user.setRole(role);
             user.setVerified(false);
+            
             this.userService.SaveUser(user);
 
+            // Create wallet
             WalletsEntity wallet = new WalletsEntity();
             wallet.setUser(user);
             wallet.setBalance(BigDecimal.ZERO);
@@ -65,7 +89,9 @@ public class AuthService implements AuthServiceImpl {
 
             return responseUtil.created("Đăng ký thành công. Vui lòng gửi OTP để xác nhận Gmail.", user);
         } catch (Exception e) {
-            return responseUtil.error("Lỗi khi đăng ký tài khoản", e);
+            System.err.println("ERROR in register: " + e.getClass().getName() + ": " + e.getMessage());
+            e.printStackTrace(); // Log exception để debug
+            return responseUtil.error("Lỗi khi đăng ký tài khoản: " + e.getMessage(), e);
         }
     }
 
@@ -117,23 +143,45 @@ public class AuthService implements AuthServiceImpl {
     }
 
     // ===================== LOGIN =====================
-    public ResponseEntity<Apireponsi<String>> login(authRequesDTO dto) {
+    public ResponseEntity<Apireponsi<LoginResponseDTO>> login(authRequesDTO dto) {
         try {
+            // Lấy user trước khi authenticate để đảm bảo user tồn tại
+            UsersEntity user = userService.FindByUsername(dto.getUsername());
+            if (user == null) {
+                return responseUtil.notFound("User không tồn tại");
+            }
+            
+            if (!user.isVerified()) {
+                return responseUtil.badRequest("Tài khoản chưa xác thực email");
+            }
+            
+            if (user.getRole() == null) {
+                return responseUtil.error("Lỗi: User không có role được gán", new Exception("User role is null"));
+            }
+            
+            // Authenticate sau khi đã verify user tồn tại
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(dto.getUsername(), dto.getPassword())
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            UsersEntity user = userService.FindByUsername(dto.getUsername());
-            if (user == null) return responseUtil.notFound("User không tồn tại");
-            if (!user.isVerified()) return responseUtil.badRequest("Tài khoản chưa xác thực email");
-
             String token = jwtUtil.generateToken(user.getUsername());
-            return responseUtil.ok("Login thành công", token);
+            
+            // Tạo response với token và thông tin user
+            LoginResponseDTO loginResponse = new LoginResponseDTO();
+            loginResponse.setToken(token);
+            loginResponse.setUsername(user.getUsername());
+            loginResponse.setEmail(user.getEmail());
+            loginResponse.setRole(user.getRole().getName());
+            loginResponse.setUserId(user.getId());
+
+            return responseUtil.ok("Login thành công", loginResponse);
         } catch (BadCredentialsException e) {
             return responseUtil.unauthorized("Sai tài khoản hoặc mật khẩu");
         } catch (Exception e) {
-            return responseUtil.error("Lỗi khi đăng nhập", e);
+            System.err.println("ERROR in login: " + e.getClass().getName() + ": " + e.getMessage());
+            e.printStackTrace(); // Log exception để debug
+            return responseUtil.error("Lỗi khi đăng nhập: " + e.getMessage(), e);
         }
     }
 

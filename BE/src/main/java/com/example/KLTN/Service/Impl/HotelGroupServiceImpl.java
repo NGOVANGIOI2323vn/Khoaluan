@@ -1,6 +1,5 @@
 package com.example.KLTN.Service.Impl;
 
-import com.example.KLTN.Entity.HotelEntity;
 import com.example.KLTN.Entity.HotelGroupEntity;
 
 import java.util.List;

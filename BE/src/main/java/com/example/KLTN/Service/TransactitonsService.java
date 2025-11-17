@@ -1,6 +1,5 @@
 package com.example.KLTN.Service;
 
-import com.example.KLTN.Config.HTTPstatus.HttpResponseUtil;
 import com.example.KLTN.Entity.TransactitonsEntity;
 import com.example.KLTN.Entity.UsersEntity;
 import com.example.KLTN.Entity.WalletTransactionEntity;
@@ -19,7 +18,6 @@ import java.time.LocalDateTime;
 @Service
 public class TransactitonsService implements TransactitonsServiceImpl {
     private final UserService userService;
-    private final HttpResponseUtil responseUtil;
     private final WalletService walletService;
     private final TransactitonsRepository transactitonsRepository;
     private final WalletTransactionService walletTransactionService;
@@ -41,11 +39,6 @@ public class TransactitonsService implements TransactitonsServiceImpl {
                 System.err.println("⚠ Không parse được userId từ orderInfo: " + orderInfo);
             }
         }
-        System.out.println("===== VNPAY CALLBACK (FAILED) =====");
-        System.out.println("vnp_TxnRef = " + vnpTxnRef);
-        System.out.println("vnp_OrderInfo = " + orderInfo);
-        System.out.println("vnp_Amount = " + amountStr);
-        System.out.println("==================================");
         UsersEntity users = userService.findById(id);
         WalletsEntity wallets = walletService.GetWallet(users);
         if (amountStr == null || vnpTxnRef == null) {
@@ -89,11 +82,6 @@ public class TransactitonsService implements TransactitonsServiceImpl {
         }
         UsersEntity users = userService.findById(id);
         WalletsEntity wallets = walletService.GetWallet(users);
-        System.out.println("===== VNPAY CALLBACK (SUCCESS) =====");
-        System.out.println("vnp_TxnRef = " + vnpTxnRef);
-        System.out.println("vnp_OrderInfo = " + orderInfo);
-        System.out.println("vnp_Amount = " + amountStr);
-        System.out.println("==================================");
 
         if (amountStr == null || vnpTxnRef == null) {
             System.err.println("⚠ VNPay callback thất bại không đủ dữ liệu -> Bỏ qua lưu DB");
