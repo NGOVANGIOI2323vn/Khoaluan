@@ -74,7 +74,10 @@ const Login = () => {
   }
 
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:8081/oauth2/authorization/google'
+    // Sử dụng backend URL từ environment hoặc fallback về localhost
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081'
+    // Redirect đến backend OAuth2 endpoint - backend sẽ redirect đến Google
+    window.location.href = `${backendUrl}/oauth2/authorization/google`
   }
 
   return (
@@ -153,16 +156,20 @@ const Login = () => {
             >
               {loading ? 'Đang đăng nhập...' : 'Đăng Nhập'}
             </button>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full bg-white border border-gray-300 py-2.5 md:py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 transition text-sm md:text-base"
-            >
-              <span className="text-lg md:text-xl">G</span>
-              <span>Đăng nhập với tài khoản Google</span>
-            </button>
           </form>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleGoogleLogin()
+            }}
+            className="w-full bg-white border border-gray-300 py-2.5 md:py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 transition text-sm md:text-base mt-4"
+          >
+            <span className="text-lg md:text-xl">G</span>
+            <span>Đăng nhập với tài khoản Google</span>
+          </button>
         </motion.div>
       </div>
     </div>

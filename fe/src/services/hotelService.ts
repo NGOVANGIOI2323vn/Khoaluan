@@ -11,6 +11,8 @@ export interface Hotel {
   rating: number
   status: string
   minPrice?: number // Giá thấp nhất của khách sạn
+  latitude?: number // Vĩ độ
+  longitude?: number // Kinh độ
   rooms?: Room[]
   owner?: {
     id: number

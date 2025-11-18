@@ -1,6 +1,9 @@
 package com.example.KLTN.Config.config;
 
+import com.example.KLTN.Service.CustomOAuth2UserService;
+import com.example.KLTN.Service.CustomOidcUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -9,6 +12,7 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -21,12 +25,22 @@ public class SecurityConfig {
     private final AuthenticationProvider authenticationProvider;
     private final CorsConfigurationSource corsConfigurationSource;
     private final SecurityExceptionHandler securityExceptionHandler;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final CustomOidcUserService customOidcUserService;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final ClientRegistrationRepository clientRegistrationRepository;
+    
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // OAuth2 cần session để lưu state, chỉ dùng STATELESS cho JWT API
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                )
                 .authenticationProvider(authenticationProvider)
                 .authorizeHttpRequests(auth -> auth
                         // Allow OPTIONS requests for CORS preflight
@@ -44,6 +58,14 @@ public class SecurityConfig {
                         // Public Info endpoints
                         .requestMatchers(HttpMethod.GET, "/api/info/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/info/contact/message").permitAll()
+                        // Public Geocoding endpoints
+                        .requestMatchers(HttpMethod.POST, "/api/geocoding/geocode-address").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/geocoding/place-autocomplete").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/geocoding/place-details").permitAll()
+                        // Admin Geocoding endpoints
+                        .requestMatchers(HttpMethod.POST, "/api/geocoding/admin/**").hasRole("ADMIN")
+                        // Public Chat endpoint (không cần đăng nhập)
+                        .requestMatchers(HttpMethod.POST, "/api/chat").permitAll()
                         // Role-based API - Hotels
                         .requestMatchers(HttpMethod.POST, "/api/hotels").hasRole("OWNER")
                         .requestMatchers(HttpMethod.PUT, "/api/hotels/{id}").hasAnyRole("OWNER", "ADMIN")
@@ -81,9 +103,22 @@ public class SecurityConfig {
                 )
                 // OAuth2 login
                 .oauth2Login(oauth -> oauth
-                        .defaultSuccessUrl("/home", true)
-                        .defaultSuccessUrl("/api/auth/success", true)
-                        .failureUrl("/api/auth/login?error=true")
+                        .successHandler(oAuth2SuccessHandler)
+                        .failureUrl(frontendUrl + "/login?error=oauth2_failed")
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestResolver(
+                                        new CustomOAuth2AuthorizationRequestResolver(
+                                                new org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver(
+                                                        clientRegistrationRepository,
+                                                        "/oauth2/authorization"
+                                                )
+                                        )
+                                )
+                        )
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .oidcUserService(customOidcUserService)
+                                .userService(customOAuth2UserService)
+                        )
                 )
                 // Add JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

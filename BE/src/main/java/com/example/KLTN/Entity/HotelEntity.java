@@ -34,6 +34,8 @@ public class HotelEntity {
     private int rating;
     @Column(nullable = false)
     private boolean deleted = false;
+    private Double latitude; // Vĩ độ
+    private Double longitude; // Kinh độ
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_user")

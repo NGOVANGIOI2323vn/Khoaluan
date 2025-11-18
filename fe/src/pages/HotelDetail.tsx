@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Header from '../components/Header'
+import GoogleMapComponent from '../components/GoogleMap'
 import { hotelService } from '../services/hotelService'
 import { useToast } from '../hooks/useToast'
 import type { Hotel, Room, HotelReview } from '../services/hotelService'
@@ -336,8 +337,9 @@ const HotelDetail = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8"
+            className="space-y-6 md:space-y-8 mb-6 md:mb-8"
           >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
             <div>
               <h3 className="font-bold text-base md:text-lg mb-3 md:mb-4">
                 Chỗ ở này bao gồm những gì?
@@ -356,9 +358,6 @@ const HotelDetail = () => {
             <div>
               <div className="flex items-center justify-between mb-3 md:mb-4">
                 <h3 className="font-bold text-base md:text-lg">Môi trường xung quanh</h3>
-                <button className="text-blue-600 hover:underline text-xs md:text-sm">
-                  View on map
-                </button>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm md:text-base">
@@ -370,6 +369,28 @@ const HotelDetail = () => {
                   <span>{hotel.phone}</span>
                   </div>
               </div>
+              </div>
+            </div>
+            
+            {/* Google Maps */}
+            <div>
+              <h3 className="font-bold text-base md:text-lg mb-3 md:mb-4">
+                Vị trí trên bản đồ
+              </h3>
+              {hotel.latitude && hotel.longitude ? (
+                <GoogleMapComponent
+                  center={{ lat: hotel.latitude, lng: hotel.longitude }}
+                  zoom={15}
+                  height="400px"
+                  address={hotel.address}
+                />
+              ) : (
+                <GoogleMapComponent
+                  address={hotel.address}
+                  zoom={15}
+                  height="400px"
+                />
+              )}
             </div>
           </motion.div>
         )}

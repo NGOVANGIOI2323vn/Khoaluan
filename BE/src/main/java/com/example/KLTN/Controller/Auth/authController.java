@@ -5,8 +5,6 @@ import com.example.KLTN.Service.CustomOAuth2UserService;
 import com.example.KLTN.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -48,9 +46,17 @@ public class authController {
 
     // OAuth2 login success
     @GetMapping("/success")
-    public ResponseEntity<?> oauth2Success(@AuthenticationPrincipal OAuth2User user) {
-        String token = CustomOAuth2UserService.latestJwtToken;
-        return authService.loginOAuth2Success(token);
+    public ResponseEntity<?> oauth2Success(@RequestParam(required = false) String token) {
+        // Ưu tiên lấy token từ parameter, nếu không có thì lấy từ static variable
+        String jwtToken = token;
+        if (jwtToken == null || jwtToken.isBlank()) {
+            jwtToken = CustomOAuth2UserService.latestJwtToken;
+        }
+        
+        if (jwtToken == null || jwtToken.isBlank()) {
+            return ResponseEntity.status(401).body("Không tìm thấy token. Vui lòng đăng nhập lại.");
+        }
+        return authService.loginOAuth2Success(jwtToken);
     }
 }
 

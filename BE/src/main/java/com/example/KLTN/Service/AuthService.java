@@ -186,7 +186,41 @@ public class AuthService implements AuthServiceImpl {
     }
 
     // ===================== LOGIN SUCCESS OAUTH2 =====================
-    public ResponseEntity<Apireponsi<String>> loginOAuth2Success(String token) {
-        return responseUtil.ok("Login OAuth2 thành công", token);
+    public ResponseEntity<Apireponsi<LoginResponseDTO>> loginOAuth2Success(String token) {
+        try {
+            if (token == null || token.isBlank()) {
+                return responseUtil.unauthorized("Token không hợp lệ");
+            }
+            
+            // Extract username từ token
+            String username = jwtUtil.extractUsername(token);
+            if (username == null || username.isBlank()) {
+                return responseUtil.unauthorized("Không thể lấy thông tin từ token");
+            }
+            
+            // Lấy user từ database
+            UsersEntity user = userService.FindByUsername(username);
+            if (user == null) {
+                return responseUtil.notFound("User không tồn tại");
+            }
+            
+            if (user.getRole() == null) {
+                return responseUtil.error("Lỗi: User không có role được gán", new Exception("User role is null"));
+            }
+            
+            // Tạo response với token và thông tin user
+            LoginResponseDTO loginResponse = new LoginResponseDTO();
+            loginResponse.setToken(token);
+            loginResponse.setUsername(user.getUsername());
+            loginResponse.setEmail(user.getEmail());
+            loginResponse.setRole(user.getRole().getName());
+            loginResponse.setUserId(user.getId());
+            
+            return responseUtil.ok("Login OAuth2 thành công", loginResponse);
+        } catch (Exception e) {
+            System.err.println("ERROR in loginOAuth2Success: " + e.getClass().getName() + ": " + e.getMessage());
+            e.printStackTrace();
+            return responseUtil.error("Lỗi khi xử lý OAuth2 login: " + e.getMessage(), e);
+        }
     }
 }
