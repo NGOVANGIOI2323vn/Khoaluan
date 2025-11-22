@@ -14,5 +14,7 @@ public class hotelDto {
     private String address;
     private String phone;
     private String description;
+    private String imageUrl; // URL from Cloudinary (deprecated, use imageUrls instead)
+    private List<String> imageUrls; // List of URLs from Cloudinary
     private List<roomsDto> rooms;
 }

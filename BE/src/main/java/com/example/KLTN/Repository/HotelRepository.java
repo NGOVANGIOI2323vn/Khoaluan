@@ -47,4 +47,26 @@ public interface HotelRepository extends JpaRepository<HotelEntity, Long> {
     // Query để lấy hotels của owner
     @Query("SELECT h FROM HotelEntity h WHERE h.owner.id = :ownerId AND h.deleted = false")
     List<HotelEntity> findByOwnerId(@Param("ownerId") Long ownerId);
+    
+    // Query để lấy hotels đang chờ duyệt (pending)
+    @Query("SELECT h FROM HotelEntity h WHERE h.status = :status AND h.deleted = false")
+    List<HotelEntity> findByStatus(@Param("status") HotelEntity.Status status);
+    
+    // Query để lấy hotels đang chờ duyệt với search
+    @Query("SELECT h FROM HotelEntity h WHERE h.status = :status AND h.deleted = false " +
+           "AND (:search IS NULL OR LOWER(h.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "OR LOWER(h.address) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "OR LOWER(h.city) LIKE LOWER(CONCAT('%', :search, '%')))")
+    List<HotelEntity> findByStatusWithSearch(@Param("status") HotelEntity.Status status, @Param("search") String search);
+    
+    // Query để lấy tất cả hotels với search - chỉ dùng cho admin
+    @Query("SELECT h FROM HotelEntity h WHERE h.deleted = false " +
+           "AND (:search IS NULL OR LOWER(h.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "OR LOWER(h.address) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "OR LOWER(h.city) LIKE LOWER(CONCAT('%', :search, '%')))")
+    List<HotelEntity> findAllNotDeletedWithSearch(@Param("search") String search);
+    
+    // Query để lấy tất cả hotels (không filter status) - chỉ dùng cho admin
+    @Query("SELECT h FROM HotelEntity h WHERE h.deleted = false")
+    List<HotelEntity> findAllNotDeleted();
 }

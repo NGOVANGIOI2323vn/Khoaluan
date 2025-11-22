@@ -20,7 +20,11 @@ import java.util.List;
 @Component
 public class SecurityExceptionHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+    
+    public SecurityExceptionHandler(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
     private static final List<String> ALLOWED_ORIGINS = Arrays.asList(
         "http://localhost:5173",
         "http://localhost:3000",

@@ -34,7 +34,7 @@ const BookingHistory = () => {
       <Header showBookingForm={true} />
 
       <div className="max-w-7xl mx-auto px-4 py-4 md:py-8">
-        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-6 md:mb-8">Lịch sử đặt phòng</h1>
+        <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-6 md:mb-8">Lịch sử đặt phòng</h1>
 
         {loading && (
           <div className="text-center py-8">
@@ -64,7 +64,7 @@ const BookingHistory = () => {
                 transition={{ delay: index * 0.1 }}
                 className="bg-white rounded-lg border border-gray-300 p-4 md:p-6 shadow-sm"
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                   <div className="space-y-2 md:space-y-3">
                     <div>
                       <span className="font-semibold text-sm md:text-base">Tên khách sạn:</span>{' '}
@@ -117,7 +117,7 @@ const BookingHistory = () => {
                   </div>
                 </div>
                 {booking.status === 'PENDING' && (
-                  <div className="mt-4 flex justify-end gap-2">
+                  <div className="mt-4 flex flex-col sm:flex-row justify-end gap-2">
                     <button
                       onClick={async () => {
                         try {
@@ -129,7 +129,7 @@ const BookingHistory = () => {
                           showError(error.response?.data?.message || 'Thanh toán thất bại')
                         }
                       }}
-                      className="bg-green-600 text-white px-4 md:px-6 py-1.5 md:py-2 rounded hover:bg-green-700 transition text-sm md:text-base"
+                      className="w-full sm:w-auto bg-green-600 text-white px-4 md:px-6 py-1.5 md:py-2 rounded hover:bg-green-700 transition text-sm md:text-base whitespace-nowrap"
                     >
                       Thanh toán
                     </button>

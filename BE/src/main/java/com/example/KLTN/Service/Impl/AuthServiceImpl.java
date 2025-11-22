@@ -13,6 +13,6 @@ public interface AuthServiceImpl {
     ResponseEntity<Apireponsi<String>> sendOtp(String email);
     ResponseEntity<Apireponsi<String>> verifyOtp(VerifyDTO dto);
     ResponseEntity<Apireponsi<LoginResponseDTO>> login(authRequesDTO dto);
-    ResponseEntity<Apireponsi<String>> loginOAuth2Success(String token);
+    ResponseEntity<Apireponsi<LoginResponseDTO>> loginOAuth2Success(String token);
 
 }

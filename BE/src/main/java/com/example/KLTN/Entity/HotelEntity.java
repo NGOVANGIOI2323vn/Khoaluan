@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
+@EqualsAndHashCode(exclude = {"owner", "rooms", "images"})
 @Table(name = "hotel")
 public class HotelEntity {
     public enum Status {
@@ -34,14 +36,21 @@ public class HotelEntity {
     private int rating;
     @Column(nullable = false)
     private boolean deleted = false;
+    private Double latitude; // Vĩ độ
+    private Double longitude; // Kinh độ
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_user")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "bookings", "wallet", "role"})
     private UsersEntity owner;
-    @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "hotel"})
     private List<RoomsEntity> rooms;
+    
+    @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "hotel"})
+    @OrderBy("displayOrder ASC")
+    private List<HotelImageEntity> images;
 
     // Transient field để lưu giá thấp nhất (không lưu vào DB)
     @Transient

@@ -31,7 +31,8 @@ public class PercentController {
         Long id = Long.parseLong("1");
         adminPercentEntity percent = adminPercentService.findAdminPercentById(id);
         if (percent == null) {
-            return httpResponseUtil.notFound("Admin percent not found");
+            // Tự động tạo admin percent mặc định nếu chưa có (10% = 0.1)
+            return adminPercentService.create(0.1);
         }
         return httpResponseUtil.ok("Success", percent);
     }

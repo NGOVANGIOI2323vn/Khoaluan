@@ -149,7 +149,7 @@ const Booking = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6 md:mb-8"
         >
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">Đặt phòng</h1>
+          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2">Đặt phòng</h1>
           <div className="flex items-center gap-2 text-gray-600">
             <span>📍</span>
             <span>{hotel.name}</span>
@@ -203,7 +203,7 @@ const Booking = () => {
               transition={{ delay: 0.1 }}
               className="bg-white rounded-xl shadow-lg p-4 md:p-6"
             >
-              <h2 className="text-lg md:text-xl font-bold mb-4">Ngày nhận phòng & Số khách</h2>
+              <h2 className="text-base sm:text-lg md:text-xl font-bold mb-4">Ngày nhận phòng & Số khách</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2">Ngày nhận phòng</label>
@@ -266,7 +266,7 @@ const Booking = () => {
               transition={{ delay: 0.2 }}
               className="bg-white rounded-xl shadow-lg p-4 md:p-6"
             >
-              <h2 className="text-lg md:text-xl font-bold mb-4">Chọn loại phòng</h2>
+              <h2 className="text-base sm:text-lg md:text-xl font-bold mb-4">Chọn loại phòng</h2>
               {rooms.length === 0 ? (
                 <p className="text-center text-gray-600 py-8">Không có phòng nào</p>
               ) : (
@@ -362,7 +362,7 @@ const Booking = () => {
               transition={{ delay: 0.3 }}
               className="bg-white rounded-xl shadow-lg p-4 md:p-6"
             >
-              <h2 className="text-lg md:text-xl font-bold mb-4">Yêu cầu đặc biệt (tùy chọn)</h2>
+              <h2 className="text-base sm:text-lg md:text-xl font-bold mb-4">Yêu cầu đặc biệt (tùy chọn)</h2>
               <textarea
                 value={formData.specialRequests}
                 onChange={(e) => setFormData({ ...formData, specialRequests: e.target.value })}
@@ -380,7 +380,7 @@ const Booking = () => {
               animate={{ opacity: 1, x: 0 }}
               className="bg-white rounded-xl shadow-lg p-4 md:p-6 sticky top-4"
             >
-              <h2 className="text-lg md:text-xl font-bold mb-4">Tóm tắt đặt phòng</h2>
+              <h2 className="text-base sm:text-lg md:text-xl font-bold mb-4">Tóm tắt đặt phòng</h2>
               <div className="space-y-4 mb-6">
                 {selectedRoom && (
                   <>
@@ -393,9 +393,9 @@ const Booking = () => {
                       <span className="font-semibold">{subtotal.toLocaleString('vi-VN')} VND</span>
                     </div>
                     <div className="border-t pt-4">
-                      <div className="flex justify-between text-lg font-bold">
+                      <div className="flex justify-between text-base sm:text-lg font-bold">
                         <span>Tổng cộng</span>
-                        <span className="text-blue-600">{total.toLocaleString('vi-VN')} VND</span>
+                        <span className="text-blue-600 break-words">{total.toLocaleString('vi-VN')} VND</span>
                       </div>
                     </div>
                   </>
@@ -406,7 +406,7 @@ const Booking = () => {
               </div>
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-base md:text-lg"
+                className="w-full bg-blue-600 text-white py-2.5 sm:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm sm:text-base md:text-lg"
               >
                 Tiếp tục thanh toán
               </button>

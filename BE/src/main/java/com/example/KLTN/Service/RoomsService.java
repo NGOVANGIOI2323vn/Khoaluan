@@ -72,10 +72,28 @@ public class RoomsService implements RoomsServiceImpl {
             if (rooms == null) {
                 return httpResponseUtil.notFound("rooms Null");
             }
-            if (image == null) {
+            if (imagedto == null || imagedto.isEmpty()) {
                 return httpResponseUtil.notFound("image Null");
             }
             String imageUrl = image.updateFile(rooms.getImage(), imagedto);
+            rooms.setImage(imageUrl);
+            this.saveRooms(rooms);
+            return httpResponseUtil.ok("Update Image Rooms Success", rooms);
+        } catch (Exception e) {
+            return httpResponseUtil.error("UpdateImage Error", e);
+        }
+    }
+    
+    // New method to update room image with URL
+    public ResponseEntity<Apireponsi<RoomsEntity>> UpdateImageUrl(Long id, String imageUrl) {
+        try {
+            RoomsEntity rooms = this.findRoomById(id);
+            if (rooms == null) {
+                return httpResponseUtil.notFound("rooms Null");
+            }
+            if (imageUrl == null || imageUrl.isEmpty()) {
+                return httpResponseUtil.notFound("image URL Null");
+            }
             rooms.setImage(imageUrl);
             this.saveRooms(rooms);
             return httpResponseUtil.ok("Update Image Rooms Success", rooms);

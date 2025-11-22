@@ -44,6 +44,13 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
                 return httpResponseUtil.badRequest("Số tiền không đủ");
             }
 
+            // Trừ tiền ngay khi tạo yêu cầu rút tiền
+            wallet.setBalance(wallet.getBalance().subtract(amount));
+            wallettService.SaveWallet(wallet);
+            
+            // Tạo transaction record
+            walletTransactionService.CreateWalletTransactionUUser(user, wallet.getBalance().doubleValue(), "Yêu cầu rút tiền (Chờ duyệt)", WalletTransactionEntity.TransactionType.PAYMENT);
+
             withDrawHistoryEntity withdraw = new withDrawHistoryEntity();
             withdraw.setAmount(dto.getAmount());
             withdraw.setCreate_AT(LocalDateTime.now());
@@ -55,7 +62,7 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             withdraw.setStatus(withDrawHistoryEntity.Status.pending);
 
             saveWithdraw(withdraw);
-            return httpResponseUtil.created("Tạo mới thành công giao dịch", withdraw);
+            return httpResponseUtil.created("Tạo yêu cầu rút tiền thành công. Tiền đã được tạm giữ chờ duyệt.", withdraw);
         } catch (Exception e) {
             return httpResponseUtil.error("Create Error", e);
         }
@@ -63,9 +70,6 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
     @Override
     public ResponseEntity<Apireponsi<withDrawHistoryEntity>> approveWithdraw(Long id) {
         try {
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            String username = authentication.getName();
-            UsersEntity user = userService.FindByUsername(username);
             withDrawHistoryEntity withdraw = findByid(id);
             if (withdraw == null) {
                 return httpResponseUtil.badRequest("Không tồn tại WithdrawHistory");
@@ -75,17 +79,14 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             }
 
             WalletsEntity wallet = withdraw.getWalletsEntity();
-            BigDecimal amount = BigDecimal.valueOf(withdraw.getAmount());
-
-            if (wallet.getBalance().compareTo(amount) < 0) {
-                return httpResponseUtil.badRequest("Số tiền không đủ để rút");
-            }
-
-            wallet.setBalance(wallet.getBalance().subtract(amount));
+            // Tiền đã được trừ khi tạo request, chỉ cần duyệt
             withdraw.setStatus(withDrawHistoryEntity.Status.resolved);
             withdraw.setUpdate_AT(LocalDateTime.now());
             saveWithdraw(withdraw);
-            walletTransactionService.CreateWalletTransactionUUser(user, withdraw.getAmount(), "Rút Tiền", WalletTransactionEntity.TransactionType.PAYMENT);
+            
+            // Tạo transaction record cho việc duyệt
+            UsersEntity owner = wallet.getUser();
+            walletTransactionService.CreateWalletTransactionUUser(owner, wallet.getBalance().doubleValue(), "Rút Tiền - Đã duyệt", WalletTransactionEntity.TransactionType.PAYMENT);
             return httpResponseUtil.ok("Đã phê duyệt rút tiền");
         } catch (Exception e) {
             return httpResponseUtil.error("Approve Error", e);
@@ -102,11 +103,21 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
                 return httpResponseUtil.badRequest("Giao dịch đã được xử lý");
             }
 
+            // Hoàn lại tiền cho user khi từ chối
+            WalletsEntity wallet = withdraw.getWalletsEntity();
+            BigDecimal amount = BigDecimal.valueOf(withdraw.getAmount());
+            wallet.setBalance(wallet.getBalance().add(amount));
+            wallettService.SaveWallet(wallet);
+            
+            // Tạo transaction record cho việc hoàn tiền
+            UsersEntity owner = wallet.getUser();
+            walletTransactionService.CreateWalletTransactionUUser(owner, wallet.getBalance().doubleValue(), "Hoàn tiền - Yêu cầu rút tiền bị từ chối", WalletTransactionEntity.TransactionType.DEPOSIT);
+
             withdraw.setStatus(withDrawHistoryEntity.Status.refuse);
             withdraw.setUpdate_AT(LocalDateTime.now());
             saveWithdraw(withdraw);
 
-            return httpResponseUtil.ok("Đã từ chối phê duyệt");
+            return httpResponseUtil.ok("Đã từ chối yêu cầu rút tiền. Tiền đã được hoàn lại vào ví.");
         } catch (Exception e) {
             return httpResponseUtil.error("Reject Error", e);
         }

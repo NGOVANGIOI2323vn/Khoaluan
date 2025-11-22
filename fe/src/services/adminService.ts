@@ -38,6 +38,25 @@ export interface WithdrawRequest {
   update_AT?: string
 }
 
+export interface PendingHotel {
+  id: number
+  name: string
+  address: string
+  city?: string
+  phone: string
+  description?: string
+  image?: string
+  images?: Array<{ id: number; imageUrl: string }>
+  rating: number
+  status: 'pending' | 'success' | 'fail'
+  owner?: {
+    id: number
+    username: string
+    email: string
+  }
+  createdAt?: string
+}
+
 export interface ApiResponse<T> {
   message: string
   data: T
@@ -96,5 +115,53 @@ export const adminService = {
     const response = await api.put<ApiResponse<WithdrawRequest>>(`/withdraws/${id}/reject`)
     return response.data
   },
+
+  // Hotel Management
+  getPendingHotels: async (search?: string) => {
+    const params = search ? { search } : {}
+    const response = await api.get<ApiResponse<PendingHotel[]>>('/admin/hotels/pending', { params })
+    return response.data
+  },
+
+  approveHotel: async (id: number) => {
+    const response = await api.put<ApiResponse<PendingHotel>>(`/admin/hotels/${id}/approve`)
+    return response.data
+  },
+
+  rejectHotel: async (id: number) => {
+    const response = await api.put<ApiResponse<PendingHotel>>(`/admin/hotels/${id}/reject`)
+    return response.data
+  },
+
+  getAllHotels: async (search?: string) => {
+    const params = search ? { search } : {}
+    const response = await api.get<ApiResponse<PendingHotel[]>>('/admin/hotels', { params })
+    return response.data
+  },
+
+  // Revenue Management
+  getRevenue: async () => {
+    const response = await api.get<ApiResponse<RevenueSummary>>('/admin/transactions/revenue/admin')
+    return response.data
+  },
+}
+
+export interface HotelRevenue {
+  hotelId: number
+  hotelName: string
+  totalRevenue: number
+  pendingRevenue: number
+  totalBookings: number
+  approvedBookings: number
+}
+
+export interface RevenueSummary {
+  totalRevenue: number
+  pendingRevenue: number
+  adminRevenue: number
+  ownerRevenue: number
+  totalTransactions: number
+  approvedTransactions: number
+  hotelRevenues: HotelRevenue[]
 }
 

@@ -17,7 +17,7 @@ const filterMap: Record<string, string> = {
 }
 
 const HotelList = () => {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selectedFilter, setSelectedFilter] = useState('Khuyến khích')
   const [showFilters, setShowFilters] = useState(false)
   const [hotels, setHotels] = useState<Hotel[]>([])
@@ -28,6 +28,7 @@ const HotelList = () => {
   const [totalElements, setTotalElements] = useState(0)
   const [hasNext, setHasNext] = useState(false)
   const [hasPrevious, setHasPrevious] = useState(false)
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
 
   useEffect(() => {
     const fetchHotels = async (page: number = 0, sortBy?: string) => {
@@ -41,6 +42,7 @@ const HotelList = () => {
           checkIn: searchParams.get('checkIn') || undefined,
           checkOut: searchParams.get('checkOut') || undefined,
           numberOfRooms: searchParams.get('numberOfRooms') ? parseInt(searchParams.get('numberOfRooms')!) : undefined,
+          search: searchQuery || undefined,
         }
         
         const response = await hotelService.getAllHotels(filters)
@@ -75,7 +77,26 @@ const HotelList = () => {
     }
 
     fetchHotels(0, filterMap[selectedFilter])
-  }, [selectedFilter, searchParams])
+  }, [selectedFilter, searchParams, searchQuery])
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchQuery(value)
+    // Update URL params
+    const newParams = new URLSearchParams(searchParams)
+    if (value) {
+      newParams.set('search', value)
+    } else {
+      newParams.delete('search')
+    }
+    setSearchParams(newParams, { replace: true })
+    setCurrentPage(0) // Reset to first page when search changes
+  }
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setCurrentPage(0)
+  }
 
   const handleFilterChange = (filter: string) => {
     setSelectedFilter(filter)
@@ -123,6 +144,45 @@ const HotelList = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header showBookingForm={true} />
+
+      {/* Search Bar */}
+      <div className="bg-white border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 md:py-6">
+          <form onSubmit={handleSearchSubmit} className="mb-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder="Tìm kiếm khách sạn theo tên hoặc địa chỉ..."
+                className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 sm:flex-none bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-blue-700 transition font-semibold text-sm whitespace-nowrap"
+                >
+                  🔍 Tìm kiếm
+                </button>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('')
+                      const newParams = new URLSearchParams(searchParams)
+                      newParams.delete('search')
+                      setSearchParams(newParams, { replace: true })
+                    }}
+                    className="bg-gray-200 text-gray-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-gray-300 transition text-sm flex-shrink-0"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
 
       {/* Filter Bar */}
       <div className="bg-white border-b shadow-sm">

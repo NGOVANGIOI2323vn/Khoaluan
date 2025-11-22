@@ -128,8 +128,8 @@ const About = () => {
             transition={{ duration: 0.6 }}
             className="text-center"
           >
-            <h1 className="text-4xl md:text-6xl font-bold mb-4">Về chúng tôi</h1>
-            <p className="text-xl md:text-2xl opacity-90 max-w-3xl mx-auto">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4">Về chúng tôi</h1>
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl opacity-90 max-w-3xl mx-auto">
               {companyInfo.mission || 'Mang đến trải nghiệm đặt phòng khách sạn tốt nhất cho khách hàng'}
             </p>
           </motion.div>
@@ -145,13 +145,13 @@ const About = () => {
           className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center"
         >
           <div>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-4">
               Sứ mệnh của chúng tôi
             </h2>
-            <p className="text-gray-600 text-lg mb-4">
+            <p className="text-gray-600 text-sm sm:text-base md:text-lg mb-4">
               {companyInfo.mission || 'Mang đến trải nghiệm đặt phòng khách sạn tốt nhất cho khách hàng với giá cả hợp lý, dịch vụ chất lượng và hỗ trợ 24/7.'}
             </p>
-            <p className="text-gray-600 text-lg mb-6">
+            <p className="text-gray-600 text-sm sm:text-base md:text-lg mb-4 md:mb-6">
               Với hơn {companyInfo.founded ? new Date().getFullYear() - parseInt(companyInfo.founded) : 15} năm kinh nghiệm trong ngành du lịch, chúng tôi đã phục vụ hàng triệu
               khách hàng và nhận được sự tin tưởng từ đối tác trên toàn thế giới.
             </p>
@@ -193,7 +193,7 @@ const About = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.6 }}
-            className="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-12"
+            className="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-gray-800 mb-8 md:mb-12"
           >
             Đội ngũ của chúng tôi
           </motion.h2>
@@ -214,10 +214,10 @@ const About = () => {
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-1">{member.name}</h3>
-                  <p className="text-blue-600 font-semibold mb-3">{member.position}</p>
-                  <p className="text-gray-600 text-sm">{member.bio}</p>
+                <div className="p-4 sm:p-6">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1 break-words">{member.name}</h3>
+                  <p className="text-blue-600 font-semibold mb-2 sm:mb-3 text-sm sm:text-base break-words">{member.position}</p>
+                  <p className="text-gray-600 text-xs sm:text-sm break-words">{member.bio}</p>
                 </div>
               </motion.div>
             ))}
@@ -231,7 +231,7 @@ const About = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 1.0 }}
-          className="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-12"
+          className="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-gray-800 mb-8 md:mb-12"
         >
           Tại sao chọn chúng tôi?
         </motion.h2>
@@ -264,8 +264,8 @@ const About = () => {
               >
                 {feature.icon}
               </motion.div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2 relative z-10">{feature.title}</h3>
-              <p className="text-gray-600 relative z-10">{feature.description}</p>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 relative z-10 break-words">{feature.title}</h3>
+              <p className="text-sm sm:text-base text-gray-600 relative z-10 break-words">{feature.description}</p>
             </motion.div>
           ))}
         </div>
@@ -274,7 +274,7 @@ const About = () => {
       {/* Stats Section */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-12 md:py-16">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
             {statistics.map((stat, index) => (
               <motion.div
                 key={index}
@@ -285,7 +285,7 @@ const About = () => {
                 className="text-center text-white"
               >
                 <motion.div
-                  className="text-4xl mb-2"
+                  className="text-3xl sm:text-4xl mb-2"
                   animate={{
                     rotate: [0, 10, -10, 0],
                   }}
@@ -298,7 +298,7 @@ const About = () => {
                   {stat.icon}
                 </motion.div>
                 <motion.div
-                  className="text-4xl md:text-5xl font-bold mb-2"
+                  className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2"
                   animate={{
                     scale: [1, 1.05, 1],
                   }}
@@ -310,7 +310,7 @@ const About = () => {
                 >
                   {stat.number}
                 </motion.div>
-                <div className="text-lg opacity-90">{stat.label}</div>
+                <div className="text-sm sm:text-base md:text-lg opacity-90">{stat.label}</div>
               </motion.div>
             ))}
           </div>

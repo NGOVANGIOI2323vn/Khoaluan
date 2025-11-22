@@ -16,6 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @Data
+@EqualsAndHashCode(exclude = {"user", "transactions"})
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class WalletsEntity {
 

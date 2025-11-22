@@ -4,6 +4,7 @@ import type { Hotel, Room } from './hotelService'
 export interface CreateHotelRoom {
   number: string
   price: number
+  imageUrl?: string // URL from Cloudinary
 }
 
 export interface CreateHotelData {
@@ -11,6 +12,8 @@ export interface CreateHotelData {
   address: string
   phone: string
   description: string
+  imageUrl?: string // URL from Cloudinary (deprecated, use imageUrls)
+  imageUrls?: string[] // List of URLs from Cloudinary
   rooms: CreateHotelRoom[]
 }
 
@@ -19,6 +22,8 @@ export interface UpdateHotelData {
   address?: string
   phone?: string
   description?: string
+  imageUrl?: string // URL from Cloudinary (deprecated, use imageUrls)
+  imageUrls?: string[] // List of URLs from Cloudinary
 }
 
 export interface UpdateRoomData {
@@ -37,18 +42,29 @@ export interface ApiResponse<T> {
 
 export const ownerService = {
   // Hotel Management
-  createHotel: async (hotelData: CreateHotelData, hotelImage: File, roomsImages: File[]) => {
+  createHotel: async (hotelData: CreateHotelData, hotelImageUrls?: string[], roomsImageUrls?: string[]) => {
+    // If using Cloudinary URLs, send as JSON string in FormData
+    if (hotelImageUrls && hotelImageUrls.length > 0 && roomsImageUrls) {
+      const dataWithUrls = {
+        ...hotelData,
+        imageUrls: hotelImageUrls, // Gửi danh sách nhiều ảnh
+        rooms: hotelData.rooms.map((room, index) => ({
+          ...room,
+          imageUrl: roomsImageUrls[index],
+        })),
+      }
+      const formData = new FormData()
+      // Send JSON as Blob with application/json content type
+      const jsonBlob = new Blob([JSON.stringify(dataWithUrls)], { type: 'application/json' })
+      formData.append('hotel', jsonBlob, 'hotel.json')
+      const response = await api.post<ApiResponse<Hotel>>('/hotels', formData)
+      return response.data
+    }
+    // Fallback to file upload (for backward compatibility)
     const formData = new FormData()
-    formData.append('hotel', JSON.stringify(hotelData))
-    formData.append('hotelImage', hotelImage)
-    roomsImages.forEach((image) => {
-      formData.append('roomsImage', image)
-    })
-    const response = await api.post<ApiResponse<Hotel>>('/hotels', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
+    const jsonBlob = new Blob([JSON.stringify(hotelData)], { type: 'application/json' })
+    formData.append('hotel', jsonBlob, 'hotel.json')
+    const response = await api.post<ApiResponse<Hotel>>('/hotels', formData)
     return response.data
   },
   deleteHotel: async (id: number) => {
@@ -56,17 +72,15 @@ export const ownerService = {
     return response.data
   },
 
-  updateHotel: async (id: number, hotelData: UpdateHotelData, hotelImage?: File) => {
+  updateHotel: async (id: number, hotelData: UpdateHotelData, hotelImageUrls?: string[]) => {
     const formData = new FormData()
-    formData.append('hotel', JSON.stringify(hotelData))
-    if (hotelImage) {
-      formData.append('hotelImage', hotelImage)
-    }
-    const response = await api.put<ApiResponse<Hotel>>(`/hotels/${id}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
+    // Include imageUrls in the DTO if provided
+    const dataWithUrls = hotelImageUrls && hotelImageUrls.length > 0 
+      ? { ...hotelData, imageUrls: hotelImageUrls } 
+      : hotelData
+    // Send JSON as string (backend will parse it)
+    formData.append('hotel', JSON.stringify(dataWithUrls))
+    const response = await api.put<ApiResponse<Hotel>>(`/hotels/${id}`, formData)
     return response.data
   },
 
@@ -78,13 +92,9 @@ export const ownerService = {
   },
 
   // Room Management
-  updateRoomImage: async (roomId: number, image: File) => {
-    const formData = new FormData()
-    formData.append('image', image)
-    const response = await api.put<ApiResponse<Room>>(`/rooms/${roomId}/image`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+  updateRoomImage: async (roomId: number, imageUrl: string) => {
+    const response = await api.put<ApiResponse<Room>>(`/rooms/${roomId}/image`, null, {
+      params: { imageUrl },
     })
     return response.data
   },
@@ -156,6 +166,24 @@ export const ownerService = {
     const response = await api.get<ApiResponse<WithdrawRequest[]>>('/withdraws/my-withdraws')
     return response.data
   },
+
+  // Revenue Management
+  getRevenue: async () => {
+    const response = await api.get<ApiResponse<RevenueSummary>>('/admin/transactions/revenue/owner')
+    return response.data
+  },
+
+  // Wallet Management
+  getWalletBalance: async () => {
+    const response = await api.get<ApiResponse<WalletBalance>>('/wallet/balance')
+    return response.data
+  },
+}
+
+export interface WalletBalance {
+  balance: number
+  userId: number
+  username: string
 }
 
 export interface BookingTransaction {
@@ -189,5 +217,24 @@ export interface WithdrawRequest {
   status: 'pending' | 'resolved' | 'refuse'
   create_AT: string
   update_AT?: string
+}
+
+export interface HotelRevenue {
+  hotelId: number
+  hotelName: string
+  totalRevenue: number
+  pendingRevenue: number
+  totalBookings: number
+  approvedBookings: number
+}
+
+export interface RevenueSummary {
+  totalRevenue: number
+  pendingRevenue: number
+  adminRevenue: number
+  ownerRevenue: number
+  totalTransactions: number
+  approvedTransactions: number
+  hotelRevenues: HotelRevenue[]
 }
 

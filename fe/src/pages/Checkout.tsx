@@ -301,7 +301,7 @@ const Checkout = () => {
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-3xl md:text-4xl font-bold mb-8"
+          className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6 md:mb-8"
         >
           Thanh toán
         </motion.h1>
@@ -317,25 +317,25 @@ const Checkout = () => {
           </motion.div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
           {/* Booking Summary */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
-            className="lg:col-span-2 space-y-6"
+            className="lg:col-span-2 space-y-4 md:space-y-6"
           >
             {/* Booking Details */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold mb-4">Chi tiết đặt phòng</h2>
-              <div className="flex items-start gap-4 mb-4">
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold mb-4">Chi tiết đặt phòng</h2>
+              <div className="flex items-start gap-3 sm:gap-4 mb-4">
                 <img
                   src={updatedBookingData.hotelImage}
                   alt={updatedBookingData.hotelName}
-                  className="w-24 h-24 object-cover rounded-lg"
+                  className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg flex-shrink-0"
                 />
-                <div>
-                  <h3 className="font-bold text-lg">{updatedBookingData.hotelName}</h3>
-                  <p className="text-gray-600">{updatedBookingData.roomType}</p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-base sm:text-lg break-words">{updatedBookingData.hotelName}</h3>
+                  <p className="text-sm sm:text-base text-gray-600 break-words">{updatedBookingData.roomType}</p>
                 </div>
               </div>
               
@@ -410,8 +410,8 @@ const Checkout = () => {
             </div>
 
             {/* Payment Method */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold mb-4">Phương thức thanh toán</h2>
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold mb-4">Phương thức thanh toán</h2>
               <div className="space-y-3">
                 {paymentMethods.map((method) => (
                   <motion.button
@@ -425,11 +425,11 @@ const Checkout = () => {
                         : 'border-gray-300 hover:border-blue-300'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{method.icon}</span>
-                      <div className="flex-1">
-                        <div className="font-semibold">{method.label}</div>
-                        <div className="text-sm text-gray-600">{method.description}</div>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <span className="text-xl sm:text-2xl flex-shrink-0">{method.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm sm:text-base break-words">{method.label}</div>
+                        <div className="text-xs sm:text-sm text-gray-600 break-words">{method.description}</div>
                       </div>
                     </div>
                   </motion.button>
@@ -442,12 +442,12 @@ const Checkout = () => {
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="bg-white rounded-xl shadow-lg p-6"
+                className="bg-white rounded-xl shadow-lg p-4 sm:p-6"
               >
-                <h2 className="text-2xl font-bold mb-4">Thông tin thanh toán</h2>
+                <h2 className="text-xl sm:text-2xl font-bold mb-4">Thông tin thanh toán</h2>
                 <form className="space-y-4">
                   <div>
-                    <label className="block text-gray-700 font-semibold mb-2">Số thẻ</label>
+                    <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Số thẻ</label>
                     <input
                       type="text"
                       value={formData.cardNumber}
@@ -461,7 +461,7 @@ const Checkout = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-700 font-semibold mb-2">Tên chủ thẻ</label>
+                    <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Tên chủ thẻ</label>
                     <input
                       type="text"
                       value={formData.cardName}
@@ -470,9 +470,9 @@ const Checkout = () => {
                       placeholder="NGUYEN VAN A"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-gray-700 font-semibold mb-2">Ngày hết hạn</label>
+                      <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Ngày hết hạn</label>
                       <input
                         type="text"
                         value={formData.expiryDate}
@@ -486,7 +486,7 @@ const Checkout = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-700 font-semibold mb-2">CVV</label>
+                      <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">CVV</label>
                       <input
                         type="text"
                         value={formData.cvv}
@@ -505,11 +505,11 @@ const Checkout = () => {
             )}
 
             {/* Contact Info */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold mb-4">Thông tin liên hệ</h2>
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold mb-4">Thông tin liên hệ</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Email</label>
+                  <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Email</label>
                   <input
                     type="email"
                     value={formData.email}
@@ -520,7 +520,7 @@ const Checkout = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Số điện thoại</label>
+                  <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Số điện thoại</label>
                   <input
                     type="tel"
                     value={formData.phone}
@@ -540,8 +540,8 @@ const Checkout = () => {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-1"
           >
-            <div className="bg-white rounded-xl shadow-lg p-6 sticky top-4">
-              <h2 className="text-xl font-bold mb-4">Tóm tắt đơn hàng</h2>
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 sticky top-4">
+              <h2 className="text-lg sm:text-xl font-bold mb-4">Tóm tắt đơn hàng</h2>
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Giá phòng ({updatedBookingData.nights} đêm):</span>
@@ -556,9 +556,9 @@ const Checkout = () => {
                   </div>
                 )}
                 <div className="border-t pt-3">
-                  <div className="flex justify-between font-bold text-lg">
+                  <div className="flex justify-between font-bold text-base sm:text-lg">
                     <span>Tổng cộng:</span>
-                    <span className="text-blue-600">
+                    <span className="text-blue-600 break-words">
                       {calculateFinalTotal().toLocaleString('vi-VN')} VND
                     </span>
                   </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Header from '../components/Header'
+import GoogleMapComponent from '../components/GoogleMap'
 import { hotelService } from '../services/hotelService'
 import { useToast } from '../hooks/useToast'
 import type { Hotel, Room, HotelReview } from '../services/hotelService'
@@ -153,24 +154,24 @@ const HotelDetail = () => {
         </div>
 
         {/* Image Gallery */}
-        <div className="grid grid-cols-2 gap-2 md:gap-4 mb-6 md:mb-8">
-          <div className="row-span-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
+          <div className="row-span-2 col-span-2 sm:col-span-1">
             <img
               src={hotel.image}
               alt={hotel.name}
-              className="w-full h-full min-h-[200px] md:min-h-[300px] object-cover rounded-lg shadow-lg"
+              className="w-full h-full min-h-[200px] sm:min-h-[250px] md:min-h-[300px] object-cover rounded-lg shadow-lg"
             />
           </div>
           <img
             src="https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=400"
             alt="Room"
-            className="w-full h-24 md:h-48 object-cover rounded-lg shadow-lg"
+            className="w-full h-24 sm:h-32 md:h-48 object-cover rounded-lg shadow-lg"
           />
           <div className="relative">
             <img
               src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400"
               alt="Bathroom"
-              className="w-full h-24 md:h-48 object-cover rounded-lg shadow-lg"
+              className="w-full h-24 sm:h-32 md:h-48 object-cover rounded-lg shadow-lg"
             />
             <div className="absolute bottom-2 right-2 bg-white/90 px-2 md:px-3 py-1 rounded text-xs md:text-sm">
               53 photos
@@ -232,7 +233,7 @@ const HotelDetail = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-              className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 bg-gray-50 p-4 md:p-6 rounded-lg shadow-sm"
+              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6 bg-gray-50 p-4 md:p-6 rounded-lg shadow-sm"
             >
               <div className="relative">
                 <img
@@ -273,7 +274,7 @@ const HotelDetail = () => {
                 </div>
               </div>
               <div>
-                <p className="text-xl md:text-2xl font-bold text-blue-600 mb-2">
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600 mb-2 break-words">
                       {room.discountPercent > 0 ? (
                         <>
                           <span className="line-through text-gray-400 text-lg">
@@ -319,7 +320,7 @@ const HotelDetail = () => {
                       // Navigate đến checkout
                       navigate(`/checkout?roomId=${room.id}&hotelId=${hotel.id}&checkIn=${checkIn}&checkOut=${checkOut}`)
                     }}
-                    className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition text-sm md:text-base disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition text-xs sm:text-sm md:text-base disabled:bg-gray-400 disabled:cursor-not-allowed"
                     disabled={room.status !== 'AVAILABLE'}
                   >
                     {room.status === 'AVAILABLE' ? 'Đặt phòng' : 'Không khả dụng'}
@@ -336,8 +337,9 @@ const HotelDetail = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8"
+            className="space-y-6 md:space-y-8 mb-6 md:mb-8"
           >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
             <div>
               <h3 className="font-bold text-base md:text-lg mb-3 md:mb-4">
                 Chỗ ở này bao gồm những gì?
@@ -356,9 +358,6 @@ const HotelDetail = () => {
             <div>
               <div className="flex items-center justify-between mb-3 md:mb-4">
                 <h3 className="font-bold text-base md:text-lg">Môi trường xung quanh</h3>
-                <button className="text-blue-600 hover:underline text-xs md:text-sm">
-                  View on map
-                </button>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm md:text-base">
@@ -370,6 +369,28 @@ const HotelDetail = () => {
                   <span>{hotel.phone}</span>
                   </div>
               </div>
+              </div>
+            </div>
+            
+            {/* Google Maps */}
+            <div>
+              <h3 className="font-bold text-base md:text-lg mb-3 md:mb-4">
+                Vị trí trên bản đồ
+              </h3>
+              {hotel.latitude && hotel.longitude ? (
+                <GoogleMapComponent
+                  center={{ lat: hotel.latitude, lng: hotel.longitude }}
+                  zoom={15}
+                  height="400px"
+                  address={hotel.address}
+                />
+              ) : (
+                <GoogleMapComponent
+                  address={hotel.address}
+                  zoom={15}
+                  height="400px"
+                />
+              )}
             </div>
           </motion.div>
         )}
@@ -378,8 +399,8 @@ const HotelDetail = () => {
           <div className="space-y-4 md:space-y-6 mb-6 md:mb-8">
             {/* Overall Rating */}
             <div className="bg-blue-50 p-4 md:p-6 rounded-lg mb-4 md:mb-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <div className="text-3xl md:text-4xl font-bold text-blue-600">{averageRating}/5</div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-600">{averageRating}/5</div>
                 <div>
                   <div className="flex items-center gap-1 mb-1">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -428,7 +449,7 @@ const HotelDetail = () => {
                             key={star}
                             type="button"
                             onClick={() => setReviewForm({ ...reviewForm, rating: star })}
-                            className={`text-3xl transition ${
+                            className={`text-2xl sm:text-3xl transition ${
                               star <= reviewForm.rating
                                 ? 'text-yellow-400'
                                 : 'text-gray-300 hover:text-yellow-300'
@@ -457,11 +478,11 @@ const HotelDetail = () => {
                         required
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <button
                         type="submit"
                         disabled={submittingReview}
-                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed text-sm sm:text-base"
                       >
                         {submittingReview ? 'Đang gửi...' : 'Gửi đánh giá'}
                       </button>
@@ -471,7 +492,7 @@ const HotelDetail = () => {
                           setShowReviewForm(false)
                           setReviewForm({ rating: 5, comment: '' })
                         }}
-                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm sm:text-base whitespace-nowrap"
                       >
                         Hủy
                       </button>

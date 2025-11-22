@@ -13,6 +13,7 @@ import Checkout from './pages/Checkout'
 import AdminDashboard from './pages/AdminDashboard'
 import OwnerDashboard from './pages/OwnerDashboard'
 import NotFound from './pages/NotFound'
+import OAuth2Callback from './pages/OAuth2Callback'
 import ProtectedRoute from './components/ProtectedRoute'
 import ChatBox from './components/ChatBox'
 import './App.css'
@@ -30,6 +31,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
+        <Route path="/oauth2/callback" element={<OAuth2Callback />} />
         <Route
           path="/booking-history"
           element={

@@ -10,4 +10,5 @@ import lombok.NoArgsConstructor;
 public class roomsDto {
     private String number;
     private Double price;
+    private String imageUrl; // URL from Cloudinary
 }

@@ -1,4 +1,4 @@
-    package com.example.KLTN.Controller.hotel;
+package com.example.KLTN.Controller.hotel;
 
     import com.example.KLTN.Entity.RoomsEntity;
     import com.example.KLTN.Service.RoomsService;
@@ -16,8 +16,15 @@
 
         @PutMapping("/{id}/image")
         public ResponseEntity<Apireponsi<RoomsEntity>> updateImage(@PathVariable("id") Long id,
-                                                                   @RequestParam("image") MultipartFile imageRooms) {
-            return roomsService.UpdateImage(id, imageRooms);
+                                                                   @RequestParam(value = "image", required = false) MultipartFile imageRooms,
+                                                                   @RequestParam(value = "imageUrl", required = false) String imageUrl) {
+            if (imageUrl != null && !imageUrl.isEmpty()) {
+                return roomsService.UpdateImageUrl(id, imageUrl);
+            } else if (imageRooms != null && !imageRooms.isEmpty()) {
+                return roomsService.UpdateImage(id, imageRooms);
+            } else {
+                return ResponseEntity.badRequest().build();
+            }
         }
 
         @PutMapping("/{id}/price")

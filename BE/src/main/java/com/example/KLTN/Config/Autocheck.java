@@ -32,7 +32,7 @@ public class Autocheck {
                         if (r == null) continue; // bỏ qua review null
                         tong += r.getRating();
                         dem++;
-
+                    }
                     if (dem == 0) {
                         hotel.setRating(0);
                     } else {
@@ -41,7 +41,8 @@ public class Autocheck {
                 }
                 hotelService.saveHotel(hotel); // lưu vào DB
             }
-        } }catch (Exception e) {
+        } catch (Exception e) {
             System.err.println("Error in checkRating: " + e.getMessage());
         }
-}}
+    }
+}

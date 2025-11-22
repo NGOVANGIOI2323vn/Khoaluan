@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { authService } from '../services/authService'
+import { ownerService } from '../services/ownerService'
+import { Wallet } from 'lucide-react'
 
 interface HeaderProps {
   showBookingForm?: boolean
@@ -117,6 +119,7 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [username, setUsername] = useState<string | null>(null)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
 
   useEffect(() => {
     const checkAuth = () => {
@@ -149,6 +152,31 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
     }
   }, [location.pathname]) // Re-check when route changes
 
+  // Fetch wallet balance for owner/admin
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      if (isAuthenticated && (userRole === 'OWNER' || userRole === 'ADMIN')) {
+        try {
+          const response = await ownerService.getWalletBalance()
+          if (response.data) {
+            setWalletBalance(response.data.balance)
+          }
+        } catch {
+          // Silently fail - wallet might not be available
+          setWalletBalance(null)
+        }
+      } else {
+        setWalletBalance(null)
+      }
+    }
+    
+    fetchWalletBalance()
+    // Refresh balance every 30 seconds
+    const interval = setInterval(fetchWalletBalance, 30000)
+    
+    return () => clearInterval(interval)
+  }, [isAuthenticated, userRole])
+
   const handleLogout = () => {
     authService.logout()
     setIsAuthenticated(false)
@@ -159,13 +187,13 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
   }
   
   return (
-    <header className="bg-gray-100 py-3 md:py-4">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between mb-3 md:mb-4">
-          <Link to="/" className="text-xl md:text-2xl font-bold text-blue-600">
+    <header className="bg-gray-100 py-2 sm:py-3 md:py-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4">
+        <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4 gap-2">
+          <Link to="/" className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600 whitespace-nowrap">
             Hotels booking
           </Link>
-          <div className="flex items-center gap-2 md:gap-6">
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-6">
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-4 md:gap-6">
               <Link
@@ -264,6 +292,34 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
             )}
             {isAuthenticated && username ? (
               <div className="flex items-center gap-2 md:gap-3">
+                {/* Wallet Balance for Owner/Admin */}
+                {(userRole === 'OWNER' || userRole === 'ADMIN') && walletBalance !== null && (
+                  <div className="hidden md:block relative group">
+                    <div className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1.5 rounded-lg shadow-md cursor-pointer transition-all hover:shadow-lg hover:scale-105">
+                      <span className="text-lg">💰</span>
+                      <div className="flex flex-col">
+                        <span className="text-xs opacity-90">Số dư</span>
+                        <span className="text-sm font-bold">
+                          {Number(walletBalance).toLocaleString('vi-VN')} VND
+                        </span>
+                      </div>
+                    </div>
+                    {/* Hover Menu */}
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                      <Link
+                        to={userRole === 'OWNER' ? '/owner?tab=withdraws' : '/admin?tab=withdraws'}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg transition"
+                        onClick={() => {
+                          // Dispatch event để OwnerDashboard chuyển tab
+                          window.dispatchEvent(new CustomEvent('switchToWithdrawTab'))
+                        }}
+                      >
+                        <Wallet className="w-5 h-5 text-blue-600" />
+                        <span className="text-sm font-semibold text-gray-700">Rút tiền</span>
+                      </Link>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <span className="text-lg md:text-xl">👤</span>
                   <div className="hidden sm:flex flex-col">

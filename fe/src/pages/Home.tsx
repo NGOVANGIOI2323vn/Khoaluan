@@ -60,6 +60,8 @@ const Home = () => {
   }, [showCityDropdown])
 
   useEffect(() => {
+    let isMounted = true // Flag để tránh update state sau khi component unmount
+    
     const fetchHotels = async () => {
       try {
         setLoading(true)
@@ -76,6 +78,9 @@ const Home = () => {
           page: 0,
           size: 6,
         })
+        
+        // Chỉ update state nếu component vẫn còn mounted
+        if (!isMounted) return
         
         if (featuredResponse.data) {
           const hotels = Array.isArray(featuredResponse.data) 
@@ -95,31 +100,47 @@ const Home = () => {
               }
             } catch (error) {
               console.error('Failed to load hotel reviews', error)
+              if (isMounted) {
               showError('Không thể tải đánh giá khách sạn')
+              }
             }
             return []
           })
           
           const allReviews = (await Promise.all(reviewsPromises)).flat()
+          if (isMounted) {
           setTopReviews(allReviews.slice(0, 6))
+          }
         }
         
         if (popularResponse.data) {
           const hotels = Array.isArray(popularResponse.data) 
             ? popularResponse.data 
             : (popularResponse.data as { content?: Hotel[] }).content || []
+          if (isMounted) {
           setPopularHotels(hotels.slice(0, 6))
+          }
         }
       } catch (error) {
         console.error('Failed to load hotels', error)
+        if (isMounted) {
         showError('Không thể tải danh sách khách sạn')
+        }
       } finally {
+        if (isMounted) {
         setLoading(false)
+        }
       }
     }
     
     fetchHotels()
-  }, [showError])
+    
+    // Cleanup function
+    return () => {
+      isMounted = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Loại bỏ showError khỏi dependency để tránh re-render không cần thiết
   
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -447,10 +468,10 @@ const Home = () => {
         >
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">
                 Khách sạn nổi bật
               </h2>
-              <p className="text-gray-600">Những khách sạn được đánh giá cao nhất</p>
+              <p className="text-sm sm:text-base text-gray-600">Những khách sạn được đánh giá cao nhất</p>
             </div>
             <Link
               to="/hotels"
@@ -495,10 +516,10 @@ const Home = () => {
           >
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">
                   Khách sạn giá tốt
                 </h2>
-                <p className="text-gray-600">Những khách sạn với giá ưu đãi nhất</p>
+                <p className="text-sm sm:text-base text-gray-600">Những khách sạn với giá ưu đãi nhất</p>
               </div>
               <Link
                 to="/hotels?sortBy=price_asc"
@@ -542,13 +563,13 @@ const Home = () => {
             transition={{ duration: 0.6 }}
             className="text-center text-white"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
               Ưu đãi đặc biệt
             </h2>
-            <p className="text-lg md:text-xl opacity-90 mb-8">
+            <p className="text-base sm:text-lg md:text-xl opacity-90 mb-6 md:mb-8">
               Giảm giá lên đến 30% cho đặt phòng sớm
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
               {[
                 { icon: '🎁', title: 'Giảm 20%', desc: 'Cho thành viên mới' },
                 { icon: '⭐', title: 'Giảm 30%', desc: 'Đặt trước 30 ngày' },
@@ -561,11 +582,11 @@ const Home = () => {
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.05, y: -5 }}
-                  className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20"
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/20"
                 >
-                  <div className="text-4xl mb-3">{offer.icon}</div>
-                  <h3 className="text-xl font-bold mb-2">{offer.title}</h3>
-                  <p className="opacity-90">{offer.desc}</p>
+                  <div className="text-3xl sm:text-4xl mb-2 sm:mb-3">{offer.icon}</div>
+                  <h3 className="text-lg sm:text-xl font-bold mb-2 break-words">{offer.title}</h3>
+                  <p className="text-sm sm:text-base opacity-90 break-words">{offer.desc}</p>
                 </motion.div>
               ))}
             </div>
@@ -582,10 +603,10 @@ const Home = () => {
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-4">
             Tại sao chọn chúng tôi?
           </h2>
-          <p className="text-gray-600 text-lg">
+          <p className="text-gray-600 text-base sm:text-lg">
             Dịch vụ khách sạn tốt nhất với giá cả hợp lý
           </p>
         </motion.div>
@@ -620,11 +641,11 @@ const Home = () => {
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
               whileHover={{ scale: 1.05, y: -5 }}
-              className="bg-white rounded-xl p-6 shadow-lg text-center hover:shadow-xl transition"
+              className="bg-white rounded-xl p-4 sm:p-6 shadow-lg text-center hover:shadow-xl transition"
             >
-              <div className="text-5xl mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-bold mb-2 text-gray-800">{feature.title}</h3>
-              <p className="text-gray-600">{feature.desc}</p>
+              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">{feature.icon}</div>
+              <h3 className="text-lg sm:text-xl font-bold mb-2 text-gray-800 break-words">{feature.title}</h3>
+              <p className="text-sm sm:text-base text-gray-600 break-words">{feature.desc}</p>
             </motion.div>
           ))}
         </div>
@@ -641,10 +662,10 @@ const Home = () => {
               transition={{ duration: 0.6 }}
               className="text-center mb-12"
             >
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-4">
                 Đánh giá từ khách hàng
               </h2>
-              <p className="text-gray-600 text-lg">
+              <p className="text-gray-600 text-base sm:text-lg">
                 Những phản hồi chân thực từ khách hàng của chúng tôi
               </p>
             </motion.div>
@@ -658,7 +679,7 @@ const Home = () => {
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.02, y: -5 }}
-                  className="bg-white rounded-xl p-6 shadow-lg"
+                  className="bg-white rounded-xl p-4 sm:p-6 shadow-lg"
                 >
                   <div className="flex items-center gap-1 mb-3">
                     {[...Array(5)].map((_, i) => (
@@ -672,14 +693,14 @@ const Home = () => {
                       </span>
                     ))}
                   </div>
-                  <p className="text-gray-700 mb-4 line-clamp-3">{review.comment}</p>
+                  <p className="text-sm sm:text-base text-gray-700 mb-4 line-clamp-3 break-words">{review.comment}</p>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-semibold text-gray-800">
+                      <p className="text-sm sm:text-base font-semibold text-gray-800 break-words">
                         {review.user?.username || 'Khách hàng'}
                       </p>
                       {review.hotelName && (
-                        <p className="text-sm text-gray-600">{review.hotelName}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 break-words">{review.hotelName}</p>
                       )}
                     </div>
                   </div>

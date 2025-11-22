@@ -89,8 +89,8 @@ const Contact = () => {
             transition={{ duration: 0.6 }}
             className="text-center"
           >
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">Liên hệ với chúng tôi</h1>
-            <p className="text-xl opacity-90">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4">Liên hệ với chúng tôi</h1>
+            <p className="text-base sm:text-lg md:text-xl opacity-90">
               Chúng tôi luôn sẵn sàng hỗ trợ bạn 24/7
             </p>
           </motion.div>
@@ -106,7 +106,7 @@ const Contact = () => {
             transition={{ duration: 0.5 }}
             className="bg-white rounded-xl shadow-lg p-6 md:p-8"
           >
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-4 md:mb-6">
               Gửi tin nhắn cho chúng tôi
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -172,7 +172,7 @@ const Contact = () => {
             className="space-y-6"
           >
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-4 md:mb-6">
                 Thông tin liên hệ
               </h2>
               <div className="space-y-4">
@@ -189,7 +189,7 @@ const Contact = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 + index * 0.1 }}
                       whileHover={{ scale: 1.02, x: 5 }}
-                      className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg hover:bg-blue-50 transition group"
+                      className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-blue-50 transition group"
                     >
                     <motion.span
                       className="text-3xl"
@@ -204,9 +204,9 @@ const Contact = () => {
                     >
                       {info.type === 'email' ? '📧' : info.type === 'phone' ? '📞' : info.type === 'address' ? '📍' : '🕒'}
                     </motion.span>
-                    <div>
-                      <h3 className="font-semibold text-gray-800 mb-1">{info.title}</h3>
-                      <p className="text-gray-600">{info.content}</p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm sm:text-base text-gray-800 mb-1 break-words">{info.title}</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 break-words">{info.content}</p>
                     </div>
                   </motion.a>
                   ))
@@ -220,7 +220,7 @@ const Contact = () => {
 
             {/* Offices */}
             <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Văn phòng</h2>
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 mb-4">Văn phòng</h2>
               <div className="space-y-3">
                 {loading ? (
                   <div className="text-center py-8 text-gray-500">
@@ -235,17 +235,17 @@ const Contact = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3 + index * 0.1 }}
                       whileHover={{ scale: 1.02 }}
-                      className={`w-full p-4 rounded-lg text-left transition ${
+                      className={`w-full p-3 sm:p-4 rounded-lg text-left transition ${
                         selectedOffice?.id === office.id
                           ? 'bg-blue-50 border-2 border-blue-600'
                           : 'bg-gray-50 hover:bg-gray-100'
                       }`}
                     >
-                      <h3 className="font-semibold text-gray-800 mb-2">{office.name}</h3>
-                      <p className="text-sm text-gray-600 mb-1">📍 {office.address}</p>
-                      <p className="text-sm text-gray-600 mb-1">📞 {office.phone}</p>
-                      <p className="text-sm text-gray-600 mb-1">📧 {office.email}</p>
-                      {office.hours && <p className="text-sm text-gray-600">🕒 {office.hours}</p>}
+                      <h3 className="font-semibold text-sm sm:text-base text-gray-800 mb-2 break-words">{office.name}</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 mb-1 break-words">📍 {office.address}</p>
+                      <p className="text-xs sm:text-sm text-gray-600 mb-1 break-words">📞 {office.phone}</p>
+                      <p className="text-xs sm:text-sm text-gray-600 mb-1 break-words">📧 {office.email}</p>
+                      {office.hours && <p className="text-xs sm:text-sm text-gray-600 break-words">🕒 {office.hours}</p>}
                     </motion.button>
                   ))
                 ) : (
@@ -265,18 +265,18 @@ const Contact = () => {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="mt-8"
         >
-          <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
             {selectedOffice ? (
               <>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-gray-800">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 break-words">
                     Vị trí: {selectedOffice.name}
                   </h2>
                   <a
                     href={`https://www.google.com/maps/search/?api=1&query=${selectedOffice.latitude},${selectedOffice.longitude}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline text-sm"
+                    className="text-blue-600 hover:underline text-xs sm:text-sm whitespace-nowrap"
                   >
                     Mở trong Google Maps →
                   </a>
@@ -302,7 +302,7 @@ const Contact = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.5 }}
-            className="text-3xl font-bold text-center text-gray-800 mb-8"
+            className="text-2xl sm:text-3xl font-bold text-center text-gray-800 mb-6 md:mb-8"
           >
             Câu hỏi thường gặp
           </motion.h2>
@@ -322,9 +322,9 @@ const Contact = () => {
                 >
                   <button
                     onClick={() => setShowFAQs(showFAQs === faq.id ? null : faq.id)}
-                    className="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition"
+                    className="w-full p-3 sm:p-4 text-left flex items-center justify-between hover:bg-gray-50 transition"
                   >
-                    <span className="font-semibold text-gray-800">{faq.question}</span>
+                    <span className="font-semibold text-sm sm:text-base text-gray-800 break-words pr-2">{faq.question}</span>
                     <motion.span
                       animate={{ rotate: showFAQs === faq.id ? 180 : 0 }}
                       className="text-blue-600"
@@ -337,7 +337,7 @@ const Contact = () => {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="px-4 pb-4 text-gray-600"
+                      className="px-3 sm:px-4 pb-3 sm:pb-4 text-sm sm:text-base text-gray-600 break-words"
                     >
                       {faq.answer}
                     </motion.div>

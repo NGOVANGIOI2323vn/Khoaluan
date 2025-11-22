@@ -37,19 +37,23 @@ public class  Dataload implements ApplicationRunner {
             role3.setName("USER");
             roleService.SaveRole(role3);
         }
-        if (!userService.Exists("admin")) {
+        // Always update admin password to ensure it's correct
+        UsersEntity admin = userService.FindByUsername("admin");
+        if (admin == null) {
+            // Create admin if doesn't exist
             RoleEntity role = roleService.finByRolename("ADMIN");
-            // tạo sẵn 1 admin user mặc định
-            UsersEntity admin = new UsersEntity(); // tạo đối tượng rỗng
+            admin = new UsersEntity();
             admin.setUsername("admin");
             admin.setEmail("admin@example.com");
             admin.setVerified(true);
             admin.setPassword(jwtUtill.passwordEncoder().encode("123456"));
-            admin.setRole(role); // gán role ADMIN
-            admin.setPhone("0965160610");
+            admin.setRole(role);
+            admin.setPhone("0123456789");
             userService.SaveUser(admin);
-
-
+        } else {
+            // Update password to ensure it matches current encoder
+            admin.setPassword(jwtUtill.passwordEncoder().encode("123456"));
+            userService.SaveUser(admin);
         }
     }
 }

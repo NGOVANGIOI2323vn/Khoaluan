@@ -1,5 +1,11 @@
 import api from './api'
 
+export interface HotelImage {
+  id: number
+  imageUrl: string
+  displayOrder: number
+}
+
 export interface Hotel {
   id: number
   name: string
@@ -7,10 +13,13 @@ export interface Hotel {
   city?: string
   phone: string
   description: string
-  image: string
+  image: string // Ảnh đầu tiên (backward compatibility)
+  images?: HotelImage[] // Danh sách nhiều ảnh
   rating: number
   status: string
   minPrice?: number // Giá thấp nhất của khách sạn
+  latitude?: number // Vĩ độ
+  longitude?: number // Kinh độ
   rooms?: Room[]
   owner?: {
     id: number
