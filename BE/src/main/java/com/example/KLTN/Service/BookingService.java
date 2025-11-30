@@ -11,6 +11,7 @@ import com.example.KLTN.dto.PageResponse;
 import com.google.zxing.WriterException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +40,9 @@ public class BookingService implements BookingServiceImpl {
     private final PaymentResultRepository paymentResultRepository;
     private final WalletTransactionService walletTransactionService;
     private final Booking_transactionsService booking_transactionsService;
+    
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
     @Override
     public BookingEntity findByid(Long id) {
@@ -88,15 +92,22 @@ public class BookingService implements BookingServiceImpl {
     }
 
     public String createContentQr(UsersEntity user, BookingEntity booking) {
-        String qrString = "Name: " + user.getUsername() +
-                "\nKhách Sạn: " + booking.getHotel().getName() +
-                "\nĐịa chỉ: " + booking.getHotel().getAddress() +
-                "\nPhòng: " + booking.getRooms().getNumber() +
-                "\nCheck-in: " + booking.getCheckInDate() +
-                "\nCheck-out: " + booking.getCheckOutDate() +
-                "\nSố người: " + booking.getRooms().getCapacity() +
-                "\nGiá Phòng: " + booking.getTotalPrice() +
-                "\nThanh Toán: " + "Đã Thanh toán";
+        // Tạo URL để quét QR code mở trang thông tin đẹp
+        String qrUrl = frontendUrl + "/qr/" + booking.getId();
+        
+        // Vẫn giữ thông tin text để có thể đọc trực tiếp nếu cần
+        String qrString = "THÔNG TIN ĐẶT PHÒNG\n" +
+                "Mã đặt phòng: #" + booking.getId() + "\n" +
+                "Khách hàng: " + user.getUsername() + "\n" +
+                "Khách Sạn: " + booking.getHotel().getName() + "\n" +
+                "Địa chỉ: " + booking.getHotel().getAddress() + "\n" +
+                "Phòng: " + booking.getRooms().getNumber() + "\n" +
+                "Check-in: " + booking.getCheckInDate() + "\n" +
+                "Check-out: " + booking.getCheckOutDate() + "\n" +
+                "Số người: " + booking.getRooms().getCapacity() + "\n" +
+                "Giá Phòng: " + booking.getTotalPrice() + " VND\n" +
+                "Trạng thái: Đã thanh toán\n\n" +
+                "Xem chi tiết: " + qrUrl;
         return qrString;
     }
 
@@ -275,6 +286,47 @@ public class BookingService implements BookingServiceImpl {
             return httpResponseUtil.ok("Get bookings by room success", bookings);
         } catch (Exception e) {
             return httpResponseUtil.error("Error getting bookings by room", e);
+        }
+    }
+    
+    // Lấy booking theo ID (cho phép public để quét QR code)
+    public ResponseEntity<Apireponsi<BookingEntity>> getBookingById(Long id) {
+        try {
+            BookingEntity booking = bookingRepository.findById(id).orElse(null);
+            if (booking == null) {
+                return httpResponseUtil.notFound("Không tìm thấy đặt phòng");
+            }
+            
+            // Nếu có authentication, kiểm tra quyền
+            try {
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                if (authentication != null && authentication.isAuthenticated() && !authentication.getName().equals("anonymousUser")) {
+                    String username = authentication.getName();
+                    UsersEntity user = userService.FindByUsername(username);
+                    if (user != null) {
+                        // Kiểm tra quyền: chỉ user sở hữu booking hoặc ADMIN mới được xem
+                        boolean isOwner = booking.getUser() != null && booking.getUser().getId().equals(user.getId());
+                        boolean isAdmin = user.getRole() != null && user.getRole().getName() != null 
+                            && (user.getRole().getName().equals("ROLE_ADMIN") || user.getRole().getName().equals("ADMIN"));
+                        
+                        if (!isOwner && !isAdmin) {
+                            // Nếu không có quyền nhưng booking đã thanh toán, vẫn cho xem (để quét QR)
+                            if (booking.getStatus() != BookingEntity.BookingStatus.PAID) {
+                                return httpResponseUtil.badRequest("Không có quyền xem đặt phòng này");
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // Nếu không có authentication hoặc lỗi, vẫn cho phép xem nếu booking đã thanh toán (để quét QR)
+                if (booking.getStatus() != BookingEntity.BookingStatus.PAID) {
+                    return httpResponseUtil.badRequest("Chưa đăng nhập và đặt phòng chưa thanh toán");
+                }
+            }
+            
+            return httpResponseUtil.ok("Lấy thông tin đặt phòng thành công", booking);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Lỗi khi lấy thông tin đặt phòng", e);
         }
     }
 }

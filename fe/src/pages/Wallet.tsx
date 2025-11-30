@@ -50,7 +50,7 @@ const Wallet = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải số dư ví')
+      showError(error.response?.data?.message || 'Không thể tải số dư ví. Vui lòng thử lại sau.')
     }
   }
 
@@ -78,7 +78,7 @@ const Wallet = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải lịch sử rút tiền')
+      showError(error.response?.data?.message || 'Không thể tải lịch sử rút tiền. Vui lòng thử lại sau.')
     }
   }
 
@@ -107,7 +107,7 @@ const Wallet = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải lịch sử nạp tiền')
+      showError(error.response?.data?.message || 'Không thể tải lịch sử nạp tiền. Vui lòng thử lại sau.')
     }
   }
 
@@ -148,7 +148,7 @@ const Wallet = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tạo yêu cầu rút tiền')
+      showError(error.response?.data?.message || 'Không thể tạo yêu cầu rút tiền. Vui lòng kiểm tra lại thông tin và thử lại sau.')
     } finally {
       setSubmittingWithdraw(false)
     }
@@ -182,16 +182,18 @@ const Wallet = () => {
       })
 
       if (response.data?.url) {
-        // Redirect đến VNPay
+        // Loading overlay vẫn hiển thị với message "Đang chuyển đến cổng thanh toán VNPay..."
+        // Redirect đến VNPay - loading sẽ tự động ẩn khi trang redirect
         window.location.href = response.data.url
+        // Không setSubmittingDeposit(false) vì đã redirect, trang sẽ reload
       } else {
-        showError('Không thể tạo link thanh toán')
+        setSubmittingDeposit(false) // Chỉ tắt loading nếu không redirect được
+        showError('Không thể tạo liên kết thanh toán. Vui lòng thử lại sau.')
       }
     } catch (err: unknown) {
+      setSubmittingDeposit(false) // Tắt loading nếu có lỗi
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể nạp tiền')
-    } finally {
-      setSubmittingDeposit(false)
+      showError(error.response?.data?.message || 'Không thể nạp tiền. Vui lòng kiểm tra lại thông tin và thử lại sau.')
     }
   }
 
@@ -218,8 +220,39 @@ const Wallet = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 relative">
       <Header />
+      
+      {/* Loading Overlay */}
+      {(submittingDeposit || submittingWithdraw) && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center"
+          >
+            <div className="mb-6">
+              <div className="relative w-20 h-20 mx-auto">
+                <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              {submittingDeposit ? 'Đang chuyển đến cổng thanh toán VNPay...' : 'Đang xử lý rút tiền...'}
+            </h3>
+            <p className="text-gray-600 mb-4">
+              {submittingDeposit 
+                ? 'Vui lòng đợi trong giây lát, bạn sẽ được chuyển đến trang thanh toán VNPay'
+                : 'Vui lòng đợi trong giây lát, không đóng trang này'}
+            </p>
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <span className="animate-pulse">●</span>
+              <span className="animate-pulse" style={{ animationDelay: '0.2s' }}>●</span>
+              <span className="animate-pulse" style={{ animationDelay: '0.4s' }}>●</span>
+            </div>
+          </motion.div>
+        </div>
+      )}
       
       <div className="max-w-6xl xl:max-w-[1200px] 2xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <motion.div
@@ -577,9 +610,22 @@ const Wallet = () => {
                 type="button"
                 onClick={handleDeposit}
                 disabled={submittingDeposit || depositAmount < 10000}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`flex-1 px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 ${
+                  submittingDeposit
+                    ? 'bg-gray-400 text-white cursor-not-allowed opacity-75'
+                    : depositAmount < 10000
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
-                {submittingDeposit ? 'Đang xử lý...' : 'Tiếp tục thanh toán'}
+                {submittingDeposit ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Đang chuyển đến VNPay...</span>
+                  </>
+                ) : (
+                  'Tiếp tục thanh toán'
+                )}
               </button>
             </div>
           </div>

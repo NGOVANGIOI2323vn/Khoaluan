@@ -60,7 +60,7 @@ const HotelDetail = () => {
       if (reviewsRes.data) setReviews(reviewsRes.data)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      setError(error.response?.data?.message || 'Không thể tải thông tin khách sạn')
+      setError(error.response?.data?.message || 'Không thể tải thông tin khách sạn. Vui lòng thử lại sau.')
     } finally {
       setLoading(false)
     }
@@ -75,7 +75,7 @@ const HotelDetail = () => {
     setReviewError('')
     
     if (!isAuthenticated) {
-      showError('Vui lòng đăng nhập để đánh giá')
+      showError('Vui lòng đăng nhập để có thể đánh giá khách sạn.')
       navigate('/login')
       return
     }
@@ -113,7 +113,7 @@ const HotelDetail = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể gửi đánh giá. Vui lòng thử lại.')
+      showError(error.response?.data?.message || 'Không thể gửi đánh giá. Vui lòng thử lại sau hoặc kiểm tra kết nối mạng.')
     } finally {
       setSubmittingReview(false)
     }

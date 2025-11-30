@@ -45,6 +45,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Allow OPTIONS requests for CORS preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Public static resources - QR codes
+                        .requestMatchers("/uploads/qr/**").permitAll()
                         // Public API
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/oauth2/**", "/login/**", "/success", "/error").permitAll()
@@ -75,11 +77,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/hotels/{id}/discount").hasRole("OWNER")
                         // Role-based API - Rooms
                         .requestMatchers(HttpMethod.PUT, "/api/rooms/**").hasRole("OWNER")
-                        // Role-based API - Bookings
-                        .requestMatchers(HttpMethod.POST, "/api/bookings/**").hasRole("USER")
-                        .requestMatchers(HttpMethod.PUT, "/api/bookings/{id}/pay").hasRole("USER")
-                        .requestMatchers(HttpMethod.GET, "/api/bookings").hasRole("USER")
+                        // Role-based API - Bookings (đặt các rule cụ thể trước rule generic)
                         .requestMatchers(HttpMethod.GET, "/api/bookings/rooms/{roomId}").hasAnyRole("OWNER", "USER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/bookings/{id}/pay").hasRole("USER")
+                        .requestMatchers(HttpMethod.GET, "/api/bookings/{id}").permitAll() // Cho phép public để quét QR
+                        .requestMatchers(HttpMethod.GET, "/api/bookings").hasRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/api/bookings/**").hasRole("USER")
                         // Role-based API - Reviews
                         .requestMatchers(HttpMethod.POST, "/api/hotels/{id}/reviews").hasRole("USER")
                         // Role-based API - User Profile

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Header from '../components/Header'
-import { bookingService } from '../services/bookingService'
+import Invoice from '../components/Invoice'
+import { bookingService, type Booking } from '../services/bookingService'
 import { useToast } from '../hooks/useToast'
 
 const VnpayCallback = () => {
@@ -11,6 +12,7 @@ const VnpayCallback = () => {
   const { showSuccess, showError } = useToast()
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading')
   const [message, setMessage] = useState('Đang xử lý kết quả thanh toán...')
+  const [booking, setBooking] = useState<Booking | null>(null)
 
   useEffect(() => {
     const processPayment = async () => {
@@ -43,33 +45,37 @@ const VnpayCallback = () => {
           }
           
           if (bookingId) {
-            // Kiểm tra booking status
-            // Backend đã xử lý payment qua callback, chỉ cần kiểm tra
+            // Fetch booking details để hiển thị invoice
+            try {
+              // Đợi một chút để backend xử lý xong
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              
+              const bookingResponse = await bookingService.getBookingById(bookingId)
+              if (bookingResponse.data) {
+                setBooking(bookingResponse.data as Booking)
+              }
+            } catch (error) {
+              console.error('Error fetching booking:', error)
+              // Vẫn hiển thị success nhưng không có invoice
+            }
+            
             setStatus('success')
             setMessage('Thanh toán thành công! Bạn sẽ nhận được email xác nhận trong vài phút.')
             showSuccess('Thanh toán thành công!')
             
             // Xóa bookingInfo nếu có
             localStorage.removeItem('bookingInfo')
-            
-            // Redirect sau 2 giây
-            setTimeout(() => {
-              navigate('/booking-history')
-            }, 2000)
           } else {
             setStatus('success')
             setMessage('Thanh toán thành công! Vui lòng kiểm tra lịch sử đặt phòng.')
             showSuccess('Thanh toán thành công!')
-            setTimeout(() => {
-              navigate('/booking-history')
-            }, 2000)
           }
         } else {
           // Thanh toán thất bại
           setStatus('failed')
           const errorMessage = searchParams.get('vnp_ResponseCode') || 'Thanh toán thất bại'
           setMessage(`Giao dịch không thành công. Mã lỗi: ${errorMessage}`)
-          showError('Thanh toán thất bại')
+          showError('Thanh toán không thành công. Vui lòng thử lại hoặc liên hệ hỗ trợ nếu đã bị trừ tiền.')
           
           setTimeout(() => {
             navigate('/booking-history')
@@ -78,8 +84,8 @@ const VnpayCallback = () => {
       } catch (err) {
         console.error('Error processing payment:', err)
         setStatus('failed')
-        setMessage('Có lỗi xảy ra khi xử lý thanh toán')
-        showError('Có lỗi xảy ra khi xử lý thanh toán')
+        setMessage('Có lỗi xảy ra khi xử lý thanh toán. Vui lòng kiểm tra lại hoặc liên hệ hỗ trợ.')
+        showError('Có lỗi xảy ra khi xử lý thanh toán. Vui lòng kiểm tra lại hoặc liên hệ hỗ trợ.')
         
         setTimeout(() => {
           navigate('/booking-history')
@@ -89,6 +95,20 @@ const VnpayCallback = () => {
 
     processPayment()
   }, [searchParams, navigate, showSuccess, showError])
+
+  // Nếu có booking và thanh toán thành công, hiển thị invoice
+  if (status === 'success' && booking) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <Invoice
+          booking={booking}
+          onClose={() => navigate('/booking-history')}
+          onPrint={() => window.print()}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -108,14 +128,14 @@ const VnpayCallback = () => {
             </>
           )}
           
-          {status === 'success' && (
+          {status === 'success' && !booking && (
             <>
               <div className="text-6xl mb-4">✅</div>
               <h1 className="text-2xl font-bold text-green-600 mb-4">Thanh toán thành công!</h1>
               <p className="text-gray-600 mb-6">{message}</p>
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                 <p className="text-sm text-green-800">
-                  Đơn đặt phòng của bạn đã được xác nhận. Bạn sẽ được chuyển đến trang lịch sử đặt phòng trong giây lát.
+                  Đơn đặt phòng của bạn đã được xác nhận. Vui lòng kiểm tra lịch sử đặt phòng để xem chi tiết.
                 </p>
               </div>
               <button

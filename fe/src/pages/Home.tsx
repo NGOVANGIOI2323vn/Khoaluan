@@ -67,7 +67,7 @@ const Home = () => {
             } catch (error) {
               console.error('Failed to load hotel reviews', error)
               if (isMounted) {
-              showError('Không thể tải đánh giá khách sạn')
+              showError('Không thể tải đánh giá khách sạn. Vui lòng thử lại sau.')
               }
             }
             return []
@@ -90,7 +90,7 @@ const Home = () => {
       } catch (error) {
         console.error('Failed to load hotels', error)
         if (isMounted) {
-        showError('Không thể tải danh sách khách sạn')
+        showError('Không thể tải danh sách khách sạn. Vui lòng thử lại sau.')
         }
       } finally {
         if (isMounted) {
@@ -233,38 +233,40 @@ const Home = () => {
           transition={{ duration: 0.6 }}
           className="mb-8"
         >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+          <div className="mb-6">
+            <div className="mb-4">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2 text-center">
                 Khách sạn nổi bật
               </h2>
-              <p className="text-sm sm:text-base text-gray-600">Những khách sạn được đánh giá cao nhất</p>
+              <p className="text-sm sm:text-base text-gray-600 text-center">Những khách sạn được đánh giá cao nhất</p>
             </div>
-            <Link
-              to="/hotels"
-              className="text-blue-600 hover:text-blue-700 font-semibold text-sm md:text-base"
-            >
-              Xem tất cả →
-            </Link>
+            <div className="text-center">
+              <Link
+                to="/hotels"
+                className="text-blue-600 hover:text-blue-700 font-semibold text-sm md:text-base inline-block"
+              >
+                Xem tất cả →
+              </Link>
+            </div>
           </div>
           
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 justify-items-center">
               {[...Array(8)].map((_, i) => (
                 <div
                   key={i}
-                  className="bg-gray-200 rounded-lg h-64 animate-pulse"
+                  className="bg-gray-200 rounded-lg h-64 animate-pulse w-full max-w-sm"
                 />
               ))}
             </div>
           ) : featuredHotels.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 justify-items-center">
               {featuredHotels.map((hotel, index) => (
                 <HotelCard key={hotel.id} hotel={hotel} index={index} />
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 mx-auto">
               <p>Chưa có khách sạn nào</p>
             </div>
           )}
@@ -281,38 +283,40 @@ const Home = () => {
             transition={{ duration: 0.6 }}
             className="mb-8"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+            <div className="mb-6">
+              <div className="mb-4">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2 text-center">
                   Khách sạn giá tốt
                 </h2>
-                <p className="text-sm sm:text-base text-gray-600">Những khách sạn với giá ưu đãi nhất</p>
+                <p className="text-sm sm:text-base text-gray-600 text-center">Những khách sạn với giá ưu đãi nhất</p>
               </div>
-              <Link
-                to="/hotels?sortBy=price_asc"
-                className="text-blue-600 hover:text-blue-700 font-semibold text-sm md:text-base"
-              >
-                Xem tất cả →
-              </Link>
+              <div className="text-center">
+                <Link
+                  to="/hotels?sortBy=price_asc"
+                  className="text-blue-600 hover:text-blue-700 font-semibold text-sm md:text-base inline-block"
+                >
+                  Xem tất cả →
+                </Link>
+              </div>
             </div>
             
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 justify-items-center">
                 {[...Array(8)].map((_, i) => (
                   <div
                     key={i}
-                    className="bg-white rounded-lg h-64 animate-pulse"
+                    className="bg-white rounded-lg h-64 animate-pulse w-full max-w-sm"
                   />
                 ))}
               </div>
             ) : popularHotels.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 justify-items-center">
                 {popularHotels.map((hotel, index) => (
                   <HotelCard key={hotel.id} hotel={hotel} index={index} />
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 mx-auto">
                 <p>Chưa có khách sạn nào</p>
               </div>
             )}
@@ -336,7 +340,7 @@ const Home = () => {
             <p className="text-base sm:text-lg md:text-xl opacity-90 mb-6 md:mb-8">
               Giảm giá lên đến 30% cho đặt phòng sớm
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            <div className="flex flex-wrap justify-center gap-4 md:gap-6">
               {[
                 { icon: '🎁', title: 'Giảm 20%', desc: 'Cho thành viên mới' },
                 { icon: '⭐', title: 'Giảm 30%', desc: 'Đặt trước 30 ngày' },
@@ -349,9 +353,9 @@ const Home = () => {
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.05, y: -5 }}
-                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/20"
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/20 w-full sm:w-auto min-w-[200px] max-w-sm text-center mx-auto"
                 >
-                  <div className="text-3xl sm:text-4xl mb-2 sm:mb-3">{offer.icon}</div>
+                  <div className="text-3xl sm:text-4xl mb-2 sm:mb-3 flex justify-center">{offer.icon}</div>
                   <h3 className="text-lg sm:text-xl font-bold mb-2 break-words">{offer.title}</h3>
                   <p className="text-sm sm:text-base opacity-90 break-words">{offer.desc}</p>
                 </motion.div>
@@ -378,7 +382,7 @@ const Home = () => {
           </p>
         </motion.div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
+        <div className="flex flex-wrap justify-center gap-6">
           {[
             {
               icon: '🔒',
@@ -408,9 +412,9 @@ const Home = () => {
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
               whileHover={{ scale: 1.05, y: -5 }}
-              className="bg-white rounded-xl p-4 sm:p-6 shadow-lg text-center hover:shadow-xl transition"
+              className="bg-white rounded-xl p-4 sm:p-6 shadow-lg text-center hover:shadow-xl transition w-full sm:w-auto min-w-[200px] max-w-xs mx-auto"
             >
-              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">{feature.icon}</div>
+              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4 flex justify-center">{feature.icon}</div>
               <h3 className="text-lg sm:text-xl font-bold mb-2 text-gray-800 break-words">{feature.title}</h3>
               <p className="text-sm sm:text-base text-gray-600 break-words">{feature.desc}</p>
             </motion.div>
@@ -437,7 +441,7 @@ const Home = () => {
               </p>
             </motion.div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+            <div className="flex flex-wrap justify-center gap-6">
               {topReviews.map((review, index) => (
                 <motion.div
                   key={index}
@@ -446,9 +450,9 @@ const Home = () => {
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.02, y: -5 }}
-                  className="bg-white rounded-xl p-4 sm:p-6 shadow-lg"
+                  className="bg-white rounded-xl p-4 sm:p-6 shadow-lg w-full sm:w-auto min-w-[250px] max-w-sm text-center mx-auto"
                 >
-                  <div className="flex items-center gap-1 mb-3">
+                  <div className="flex items-center justify-center gap-1 mb-3">
                     {[...Array(5)].map((_, i) => (
                       <span
                         key={i}
@@ -460,8 +464,8 @@ const Home = () => {
                       </span>
                     ))}
                   </div>
-                  <p className="text-sm sm:text-base text-gray-700 mb-4 line-clamp-3 break-words">{review.comment}</p>
-                  <div className="flex items-center justify-between">
+                  <p className="text-sm sm:text-base text-gray-700 mb-4 line-clamp-3 break-words text-center">{review.comment}</p>
+                  <div className="flex items-center justify-center">
                     <div>
                       <p className="text-sm sm:text-base font-semibold text-gray-800 break-words">
                         {review.user?.username || 'Khách hàng'}
@@ -538,7 +542,7 @@ const Home = () => {
           <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">
             Điểm đến phổ biến
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 justify-items-center">
             {[
               { name: 'Đà Nẵng', image: 'https://images.unsplash.com/photo-1602002418082-a4443e081dd1?w=400', count: '500+' },
               { name: 'Hà Nội', image: 'https://images.unsplash.com/photo-1523059623039-a9ed027e7fad?w=400', count: '800+' },
@@ -548,7 +552,7 @@ const Home = () => {
               <Link
                 key={index}
                 to={`/hotels?city=${encodeURIComponent(city.name)}`}
-                className="group"
+                className="group w-full max-w-sm"
               >
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -556,7 +560,7 @@ const Home = () => {
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.05, y: -5 }}
-                  className="relative h-48 md:h-64 rounded-xl overflow-hidden shadow-lg"
+                  className="relative h-48 md:h-64 rounded-xl overflow-hidden shadow-lg w-full"
                 >
                   <img
                     src={city.image}
@@ -564,7 +568,7 @@ const Home = () => {
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white text-center">
                     <h3 className="text-lg md:text-xl font-bold mb-1">{city.name}</h3>
                     <p className="text-sm opacity-90">{city.count} khách sạn</p>
                   </div>
@@ -578,11 +582,25 @@ const Home = () => {
       {/* Feature Cards with Advanced Animations */}
       <div className="max-w-6xl xl:max-w-[1200px] 2xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16">
         <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-8"
+        >
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-4">
+            Dịch vụ của chúng tôi
+          </h2>
+          <p className="text-gray-600 text-base sm:text-lg">
+            Những lợi ích độc quyền dành cho bạn
+          </p>
+        </motion.div>
+        <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6"
+          className="flex flex-wrap justify-center gap-4 md:gap-6"
         >
           {[
             {
@@ -618,7 +636,7 @@ const Home = () => {
                 rotateY: 5,
                 transition: { duration: 0.3 },
               }}
-              className="bg-white rounded-xl p-6 md:p-8 shadow-lg text-center hover:shadow-2xl transition relative overflow-hidden group"
+              className="bg-white rounded-xl p-6 md:p-8 shadow-lg text-center hover:shadow-2xl transition relative overflow-hidden group w-full sm:w-auto min-w-[250px] max-w-sm mx-auto"
             >
               {/* Animated Gradient Background on Hover */}
               <motion.div
@@ -630,7 +648,7 @@ const Home = () => {
               
               {/* Floating Icon */}
               <motion.div
-                className="text-4xl md:text-5xl mb-3 md:mb-4 relative z-10"
+                className="text-4xl md:text-5xl mb-3 md:mb-4 relative z-10 flex justify-center"
                 animate={{
                   y: [0, -10, 0],
                   rotate: [0, 5, -5, 0],

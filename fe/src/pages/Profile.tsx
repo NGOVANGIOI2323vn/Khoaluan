@@ -36,13 +36,15 @@ const Profile = () => {
   }>({})
 
   const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
+    // Email validation: tên@domain.extension
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    return emailRegex.test(email.trim())
   }
 
   const validatePhone = (phone: string) => {
-    const phoneRegex = /^[0-9]{9,10}$/
-    return phoneRegex.test(phone.replace(/\s/g, ''))
+    // Phone validation: 9-10 chữ số (khớp với BE)
+    const cleanedPhone = phone.replace(/\D/g, '')
+    return /^[0-9]{9,10}$/.test(cleanedPhone)
   }
 
   useEffect(() => {
@@ -66,12 +68,12 @@ const Profile = () => {
           phone: response.data.phone || '',
         })
       } else {
-        showError('Không thể tải thông tin profile')
+        showError('Không thể tải thông tin tài khoản. Vui lòng thử lại sau.')
       }
     } catch (err: unknown) {
       console.error('Error fetching profile:', err)
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải thông tin profile')
+      showError(error.response?.data?.message || 'Không thể tải thông tin tài khoản. Vui lòng thử lại sau.')
     } finally {
       setLoading(false)
     }
@@ -99,7 +101,12 @@ const Profile = () => {
     if (!profileForm.phone.trim()) {
       errors.phone = 'Số điện thoại là bắt buộc'
     } else if (!validatePhone(profileForm.phone)) {
-      errors.phone = 'Số điện thoại không hợp lệ (9-10 số)'
+      const cleanedPhone = profileForm.phone.replace(/\D/g, '')
+      if (cleanedPhone.length < 9 || cleanedPhone.length > 10) {
+        errors.phone = 'Số điện thoại phải có 9 hoặc 10 chữ số'
+      } else {
+        errors.phone = 'Số điện thoại chỉ được chứa số (0-9)'
+      }
     }
     
     setValidationErrors(errors)
@@ -109,7 +116,15 @@ const Profile = () => {
     
     try {
       setUpdating(true)
-      const response = await userService.updateProfile(profileForm)
+      // Làm sạch số điện thoại trước khi gửi
+      const cleanedPhone = profileForm.phone.replace(/\D/g, '')
+      const submitData = {
+        ...profileForm,
+        phone: cleanedPhone,
+        username: profileForm.username.trim(),
+        email: profileForm.email.trim(),
+      }
+      const response = await userService.updateProfile(submitData)
       if (response.data) {
         showSuccess('Cập nhật thông tin thành công!')
         setProfile(response.data)
@@ -119,7 +134,7 @@ const Profile = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể cập nhật thông tin')
+      showError(error.response?.data?.message || 'Không thể cập nhật thông tin. Vui lòng thử lại sau.')
     } finally {
       setUpdating(false)
     }
@@ -161,7 +176,7 @@ const Profile = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể đổi mật khẩu')
+      showError(error.response?.data?.message || 'Không thể đổi mật khẩu. Vui lòng kiểm tra lại mật khẩu cũ và thử lại.')
     } finally {
       setUpdating(false)
     }
@@ -278,13 +293,17 @@ const Profile = () => {
                   </label>
                   <input
                     type="tel"
+                    placeholder="Nhập số điện thoại (9-10 số)"
                     value={profileForm.phone}
                     onChange={(e) => {
-                      setProfileForm({ ...profileForm, phone: e.target.value })
+                      // Chỉ cho phép nhập số
+                      const value = e.target.value.replace(/\D/g, '')
+                      setProfileForm({ ...profileForm, phone: value })
                       if (validationErrors.phone) {
                         setValidationErrors({ ...validationErrors, phone: undefined })
                       }
                     }}
+                    maxLength={10}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       validationErrors.phone ? 'border-red-500' : 'border-gray-300'
                     }`}

@@ -72,15 +72,24 @@ public class ChatController {
         // Chỉ tìm khách sạn nếu câu hỏi thực sự yêu cầu tìm/giới thiệu khách sạn
         List<HotelEntity> suggestedHotels = new ArrayList<>();
         if (isHotelSearchRequest(userQuestion)) {
-            suggestedHotels = findRelevantHotels(userQuestion, 5);
+            // Tăng limit lên 10 để đảm bảo có đủ khách sạn
+            suggestedHotels = findRelevantHotels(userQuestion, 10);
         }
         
-        // Lấy danh sách khách sạn (giới hạn 15 khách sạn để tránh vượt quá token limit)
-        List<HotelEntity> allHotels = hotelRepository.findAllHotelsNotPending(HotelEntity.Status.pending);
-        if (allHotels.size() > 15) {
-            allHotels = allHotels.subList(0, 15);
+        // Nếu có suggestedHotels, chỉ gửi suggestedHotels vào prompt để AI chỉ nói về các khách sạn này
+        // Nếu không có, lấy danh sách khách sạn tổng quát (giới hạn 15 khách sạn để tránh vượt quá token limit)
+        List<HotelEntity> hotelsForPrompt;
+        if (!suggestedHotels.isEmpty()) {
+            // Nếu có suggestedHotels, chỉ dùng các khách sạn này để đảm bảo AI và cards hiển thị giống nhau
+            hotelsForPrompt = suggestedHotels;
+        } else {
+            // Nếu không có suggestedHotels, lấy danh sách tổng quát
+            hotelsForPrompt = hotelRepository.findAllHotelsNotPending(HotelEntity.Status.pending);
+            if (hotelsForPrompt.size() > 15) {
+                hotelsForPrompt = hotelsForPrompt.subList(0, 15);
+            }
         }
-        String hotelData = formatHotelData(allHotels);
+        String hotelData = formatHotelData(hotelsForPrompt);
         
         // Lấy lịch sử booking nếu user đã đăng nhập (giới hạn 5 booking gần nhất)
         String bookingHistoryData = "Người dùng chưa đăng nhập hoặc chưa có lịch sử đặt phòng nào.";
@@ -95,17 +104,44 @@ public class ChatController {
             }
         }
 
-        // Tạo prompt ngắn gọn hơn để tránh vượt quá token limit
+        // Nếu có suggestedHotels, CHỈ gửi suggestedHotels vào prompt để AI chỉ nói về chúng
+        // Điều này đảm bảo AI và hotel cards nhất quán
+        String hotelsForAI;
+        if (!suggestedHotels.isEmpty()) {
+            // Nếu có suggestedHotels, chỉ format các khách sạn này để AI chỉ nói về chúng
+            hotelsForAI = formatHotelData(suggestedHotels);
+        } else {
+            // Nếu không có suggestedHotels, dùng danh sách tổng quát
+            hotelsForAI = hotelData;
+        }
+        
+        // Đếm số lượng khách sạn để thông báo cho AI
+        int hotelCount = suggestedHotels.isEmpty() ? 
+            (hotelsForPrompt != null ? hotelsForPrompt.size() : 0) : 
+            suggestedHotels.size();
+        
         String prompt = String.format(
                 "Bạn là nhân viên tư vấn đặt phòng khách sạn. Nhiệm vụ: giới thiệu khách sạn, giúp chọn phù hợp, trả lời câu hỏi về đặt phòng. KHÔNG trả lời câu hỏi ngoài chủ đề đặt phòng.\n\n" +
-                "QUAN TRỌNG: Trả lời ngắn gọn, không liệt kê chi tiết phòng và giá. Chỉ giới thiệu khách sạn một cách tự nhiên. Thông tin chi tiết về giá và phòng sẽ được hiển thị ở card khách sạn bên dưới.\n\n" +
+                "QUY TẮC QUAN TRỌNG:\n" +
+                "1. CHỈ được giới thiệu các khách sạn có trong danh sách KHÁCH SẠN bên dưới. TUYỆT ĐỐI KHÔNG được tự tạo ra tên khách sạn không có trong danh sách.\n" +
+                "2. TRƯỚC KHI nói 'không có' hoặc 'không tìm thấy', BẮT BUỘC phải kiểm tra kỹ danh sách KHÁCH SẠN bên dưới. Nếu có khách sạn phù hợp trong danh sách, PHẢI giới thiệu chúng.\n" +
+                "3. Nếu trong danh sách có %d khách sạn, bạn PHẢI giới thiệu các khách sạn đó nếu chúng phù hợp với yêu cầu. KHÔNG được nói 'không có' nếu trong danh sách có khách sạn phù hợp.\n" +
+                "4. Bạn có thể liệt kê tên khách sạn trong câu trả lời, nhưng CHỈ được liệt kê các khách sạn có trong danh sách bên dưới.\n" +
+                "5. Trả lời tự nhiên, có thể giới thiệu và liệt kê tên khách sạn phù hợp với yêu cầu của người dùng.\n" +
+                "6. QUAN TRỌNG: Nếu bạn liệt kê nhiều khách sạn, hãy đảm bảo tất cả các khách sạn đó đều có trong danh sách bên dưới.\n" +
+                "7. Nếu người dùng hỏi về khách sạn với tiêu chí cụ thể (ví dụ: 5 sao ở Đà Nẵng), hãy kiểm tra kỹ danh sách bên dưới. Nếu có khách sạn phù hợp, PHẢI giới thiệu chúng.\n" +
+                "8. QUAN TRỌNG VỀ RATING: Rating được hiển thị dạng 'X sao (X⭐)' trong danh sách. Ví dụ: '5 sao (5⭐)' nghĩa là khách sạn 5 sao. Hãy kiểm tra kỹ rating trong danh sách trước khi nói về rating.\n" +
+                "9. Nếu trong danh sách có khách sạn với rating phù hợp (ví dụ: có khách sạn '5 sao (5⭐)'), BẮT BUỘC phải giới thiệu chúng. KHÔNG được nói 'không có khách sạn 5 sao' nếu trong danh sách có khách sạn 5 sao.\n\n" +
                 "%s\n\n" +
-                "KHÁCH SẠN:\n%s\n\n" +
+                "DANH SÁCH KHÁCH SẠN CÓ SẴN (TỔNG CỘNG %d KHÁCH SẠN - CHỈ ĐƯỢC GIỚI THIỆU CÁC KHÁCH SẠN NÀY, KHÔNG ĐƯỢC TỰ TẠO THÊM):\n%s\n\n" +
                 "LỊCH SỬ ĐẶT PHÒNG:\n%s\n\n" +
                 "HƯỚNG DẪN: Đăng nhập → Chọn khách sạn → Chọn phòng → Thanh toán → Nhận QR code.\n\n" +
-                "CÂU HỎI: %s",
+                "CÂU HỎI: %s\n\n" +
+                "LƯU Ý CUỐI CÙNG: Nếu trong danh sách trên có khách sạn phù hợp với yêu cầu của người dùng, BẮT BUỘC phải giới thiệu chúng. KHÔNG được nói 'không có' nếu trong danh sách có khách sạn phù hợp.",
+                hotelCount,
                 username != null ? "Người dùng đã đăng nhập." : "Người dùng chưa đăng nhập.",
-                hotelData, 
+                hotelCount,
+                hotelsForAI, 
                 bookingHistoryData, 
                 userQuestion);
 
@@ -121,13 +157,15 @@ public class ChatController {
         String lowerQuestion = question.toLowerCase();
         String searchKeyword = extractSearchKeyword(lowerQuestion);
         String city = extractCity(lowerQuestion);
+        Integer rating = extractRating(lowerQuestion);
         
-        // Tìm hotels phù hợp
-        Pageable pageable = PageRequest.of(0, limit);
+        // Tìm hotels phù hợp - status.pending nghĩa là lấy tất cả khách sạn KHÔNG phải pending (tức là success và fail)
+        // Nhưng chúng ta chỉ muốn lấy success, nên cần filter thêm
+        Pageable pageable = PageRequest.of(0, limit * 2); // Lấy nhiều hơn để filter sau
         var hotelPage = hotelRepository.findHotelsWithFilters(
-            HotelEntity.Status.pending,
-            null, // minRating
-            null, // maxRating
+            HotelEntity.Status.pending, // status <> pending nghĩa là lấy success và fail
+            rating != null ? rating : null, // minRating - nếu có rating thì filter theo rating đó
+            rating != null ? rating : null, // maxRating - nếu có rating thì filter theo rating đó
             city, // city
             searchKeyword.isEmpty() ? null : searchKeyword, // search
             pageable
@@ -135,15 +173,99 @@ public class ChatController {
         
         List<HotelEntity> hotels = hotelPage.getContent();
         
-        // Nếu không tìm thấy, lấy hotels ngẫu nhiên
+        // Chỉ lấy khách sạn có status = success (đã được duyệt)
+        hotels = hotels.stream()
+                .filter(hotel -> hotel.getStatus() == HotelEntity.Status.success)
+                .limit(limit)
+                .collect(java.util.stream.Collectors.toList());
+        
+        // Nếu không tìm thấy với rating filter, thử tìm lại với rating filter nhưng không filter city/search
+        // để đảm bảo tìm được khách sạn có rating đó
+        if (hotels.isEmpty() && rating != null) {
+            // Thử tìm chỉ với rating, không filter city
+            pageable = PageRequest.of(0, limit * 2);
+            hotelPage = hotelRepository.findHotelsWithFilters(
+                HotelEntity.Status.pending,
+                rating, // minRating
+                rating, // maxRating
+                null, // city - bỏ filter city
+                null, // search - bỏ filter search
+                pageable
+            );
+            hotels = hotelPage.getContent().stream()
+                    .filter(hotel -> hotel.getStatus() == HotelEntity.Status.success)
+                    .filter(hotel -> hotel.getRating() == rating) // Đảm bảo rating chính xác
+                    .limit(limit)
+                    .collect(java.util.stream.Collectors.toList());
+            
+            // Nếu vẫn không tìm thấy, thử tìm không có rating filter nhưng có city
+            if (hotels.isEmpty() && city != null) {
+                pageable = PageRequest.of(0, limit * 2);
+                hotelPage = hotelRepository.findHotelsWithFilters(
+                    HotelEntity.Status.pending,
+                    null, // minRating
+                    null, // maxRating
+                    city, // city
+                    null, // search
+                    pageable
+                );
+                hotels = hotelPage.getContent().stream()
+                        .filter(hotel -> hotel.getStatus() == HotelEntity.Status.success)
+                        .filter(hotel -> hotel.getRating() == rating) // Filter rating manually
+                        .limit(limit)
+                        .collect(java.util.stream.Collectors.toList());
+            }
+        }
+        
+        // Nếu vẫn không tìm thấy, lấy hotels ngẫu nhiên theo city hoặc tất cả
         if (hotels.isEmpty()) {
-            hotels = hotelRepository.findAllHotelsNotPending(HotelEntity.Status.pending);
-            if (hotels.size() > limit) {
-                hotels = hotels.subList(0, limit);
+            if (city != null) {
+                pageable = PageRequest.of(0, limit * 2);
+                hotelPage = hotelRepository.findHotelsWithFilters(
+                    HotelEntity.Status.pending,
+                    null, // minRating
+                    null, // maxRating
+                    city, // city
+                    null, // search
+                    pageable
+                );
+                hotels = hotelPage.getContent().stream()
+                        .filter(hotel -> hotel.getStatus() == HotelEntity.Status.success)
+                        .limit(limit)
+                        .collect(java.util.stream.Collectors.toList());
+            }
+            
+            if (hotels.isEmpty()) {
+                hotels = hotelRepository.findAllHotelsNotPending(HotelEntity.Status.pending);
+                hotels = hotels.stream()
+                        .filter(hotel -> hotel.getStatus() == HotelEntity.Status.success)
+                        .limit(limit)
+                        .collect(java.util.stream.Collectors.toList());
             }
         }
         
         return hotels;
+    }
+    
+    private Integer extractRating(String question) {
+        // Tìm pattern "X sao" hoặc "X star" trong câu hỏi
+        // Pattern: số + "sao" hoặc số + "star"
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d+)\\s*(?:sao|star)");
+        java.util.regex.Matcher matcher = pattern.matcher(question);
+        
+        if (matcher.find()) {
+            try {
+                int rating = Integer.parseInt(matcher.group(1));
+                // Rating hợp lệ từ 1-5
+                if (rating >= 1 && rating <= 5) {
+                    return rating;
+                }
+            } catch (NumberFormatException e) {
+                // Ignore
+            }
+        }
+        
+        return null;
     }
     
     private String extractSearchKeyword(String question) {
@@ -163,19 +285,37 @@ public class ChatController {
     }
     
     private String extractCity(String question) {
-        // Danh sách các thành phố phổ biến
-        List<String> cities = Arrays.asList("hà nội", "hồ chí minh", "đà nẵng", "nha trang", "hội an", "huế", "phú quốc", "vũng tàu", "đà lạt");
+        // Danh sách các thành phố phổ biến với nhiều biến thể
+        // Map: key = pattern trong câu hỏi, value = tên city chuẩn trong database
+        java.util.Map<String, String> cityMap = new java.util.HashMap<>();
+        cityMap.put("hà nội", "Hà Nội");
+        cityMap.put("ha noi", "Hà Nội");
+        cityMap.put("hanoi", "Hà Nội");
+        cityMap.put("hồ chí minh", "Hồ Chí Minh");
+        cityMap.put("ho chi minh", "Hồ Chí Minh");
+        cityMap.put("hcm", "Hồ Chí Minh");
+        cityMap.put("sài gòn", "Hồ Chí Minh");
+        cityMap.put("sai gon", "Hồ Chí Minh");
+        cityMap.put("đà nẵng", "Đà Nẵng");
+        cityMap.put("da nang", "Đà Nẵng");
+        cityMap.put("danang", "Đà Nẵng");
+        cityMap.put("nha trang", "Nha Trang");
+        cityMap.put("hội an", "Hội An");
+        cityMap.put("hoi an", "Hội An");
+        cityMap.put("huế", "Huế");
+        cityMap.put("hue", "Huế");
+        cityMap.put("phú quốc", "Phú Quốc");
+        cityMap.put("phu quoc", "Phú Quốc");
+        cityMap.put("vũng tàu", "Vũng Tàu");
+        cityMap.put("vung tau", "Vũng Tàu");
+        cityMap.put("đà lạt", "Đà Lạt");
+        cityMap.put("da lat", "Đà Lạt");
+        cityMap.put("dalat", "Đà Lạt");
         
-        for (String city : cities) {
-            if (question.contains(city)) {
-                // Capitalize first letter of each word
-                String[] words = city.split("\\s+");
-                StringBuilder result = new StringBuilder();
-                for (int i = 0; i < words.length; i++) {
-                    if (i > 0) result.append(" ");
-                    result.append(words[i].substring(0, 1).toUpperCase()).append(words[i].substring(1));
-                }
-                return result.toString();
+        String lowerQuestion = question.toLowerCase();
+        for (java.util.Map.Entry<String, String> entry : cityMap.entrySet()) {
+            if (lowerQuestion.contains(entry.getKey())) {
+                return entry.getValue();
             }
         }
         
@@ -304,11 +444,12 @@ public class ChatController {
                 description = description.substring(0, 100) + "...";
             }
 
-            // Format ngắn gọn hơn
-            return String.format("%s | %s, %s | %d⭐ | Phòng: %s",
+            // Format ngắn gọn hơn - hiển thị rating rõ ràng
+            return String.format("%s | %s, %s | %d sao (%d⭐) | Phòng: %s",
                     hotel.getName(),
                     hotel.getAddress(),
                     hotel.getCity() != null ? hotel.getCity() : "N/A",
+                    hotel.getRating(),
                     hotel.getRating(),
                     roomsInfo);
         }).collect(Collectors.joining("\n"));

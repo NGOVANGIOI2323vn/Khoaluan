@@ -27,13 +27,30 @@ const Register = () => {
   }>({})
 
   const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
+    // Email validation: tên@domain.extension
+    // Cho phép: chữ cái, số, dấu chấm, gạch dưới, dấu gạch ngang trước @
+    // Sau @: domain hợp lệ với ít nhất một dấu chấm và extension
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    return emailRegex.test(email.trim())
   }
 
   const validatePhone = (phone: string) => {
-    const phoneRegex = /^[0-9+\-\s()]{9,15}$/
-    return phoneRegex.test(phone.replace(/\s/g, ''))
+    // Phone validation: 9-10 chữ số (khớp với BE)
+    // Chỉ chấp nhận số, loại bỏ khoảng trắng và ký tự đặc biệt
+    const cleanedPhone = phone.replace(/\D/g, '')
+    return /^[0-9]{9,10}$/.test(cleanedPhone)
+  }
+
+  const validateUsername = (username: string) => {
+    // Username validation: 3-50 ký tự
+    // Cho phép: chữ cái (tiếng Việt), số, khoảng trắng, dấu gạch dưới, dấu gạch ngang
+    const trimmed = username.trim()
+    if (trimmed.length < 3 || trimmed.length > 50) {
+      return false
+    }
+    // Cho phép ký tự tiếng Việt, chữ cái, số, khoảng trắng, dấu gạch dưới, dấu gạch ngang
+    const usernameRegex = /^[a-zA-ZÀ-ỹ0-9_\s-]+$/
+    return usernameRegex.test(trimmed)
   }
 
   const validateForm = () => {
@@ -45,32 +62,47 @@ const Register = () => {
       confirmPassword?: string
     } = {}
     
+    // Validate username (họ tên)
     if (!formData.username.trim()) {
-      errors.username = 'Tên đăng nhập là bắt buộc'
-    } else if (formData.username.trim().length < 3) {
-      errors.username = 'Tên đăng nhập phải có ít nhất 3 ký tự'
-    } else if (formData.username.trim().length > 50) {
-      errors.username = 'Tên đăng nhập không được quá 50 ký tự'
+      errors.username = 'Họ tên là bắt buộc'
+    } else if (!validateUsername(formData.username)) {
+      const trimmed = formData.username.trim()
+      if (trimmed.length < 3) {
+        errors.username = 'Họ tên phải có ít nhất 3 ký tự'
+      } else if (trimmed.length > 50) {
+        errors.username = 'Họ tên không được quá 50 ký tự'
+      } else {
+        errors.username = 'Họ tên chỉ được chứa chữ cái, số, khoảng trắng, dấu gạch dưới và dấu gạch ngang'
+      }
     }
     
+    // Validate email
     if (!formData.email.trim()) {
       errors.email = 'Email là bắt buộc'
     } else if (!validateEmail(formData.email)) {
-      errors.email = 'Email không hợp lệ'
+      errors.email = 'Email không hợp lệ. Ví dụ: example@email.com'
     }
     
+    // Validate phone (9-10 số, chỉ số)
     if (!formData.Phone.trim()) {
       errors.phone = 'Số điện thoại là bắt buộc'
     } else if (!validatePhone(formData.Phone)) {
-      errors.phone = 'Số điện thoại không hợp lệ (9-15 số)'
+      const cleanedPhone = formData.Phone.replace(/\D/g, '')
+      if (cleanedPhone.length < 9 || cleanedPhone.length > 10) {
+        errors.phone = 'Số điện thoại phải có 9 hoặc 10 chữ số'
+      } else {
+        errors.phone = 'Số điện thoại chỉ được chứa số (0-9)'
+    }
     }
     
+    // Validate password
     if (!formData.password) {
       errors.password = 'Mật khẩu là bắt buộc'
     } else if (formData.password.length < 6) {
       errors.password = 'Mật khẩu phải có ít nhất 6 ký tự'
     }
     
+    // Validate confirm password
     if (!confirmPassword) {
       errors.confirmPassword = 'Xác nhận mật khẩu là bắt buộc'
     } else if (formData.password !== confirmPassword) {
@@ -92,7 +124,16 @@ const Register = () => {
     setLoading(true)
 
     try {
-      const response = await authService.register(formData)
+      // Làm sạch số điện thoại (chỉ giữ số) trước khi gửi lên BE
+      const cleanedPhone = formData.Phone.replace(/\D/g, '')
+      const submitData = {
+        ...formData,
+        Phone: cleanedPhone,
+        username: formData.username.trim(),
+        email: formData.email.trim(),
+      }
+      
+      const response = await authService.register(submitData)
       if (response.message) {
         // Tự động gửi OTP sau khi đăng ký thành công
         try {
@@ -107,7 +148,7 @@ const Register = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      setError(error.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.')
+      setError(error.response?.data?.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin và thử lại.')
     } finally {
       setLoading(false)
     }
@@ -136,11 +177,11 @@ const Register = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-blue-600 font-semibold mb-2 text-sm md:text-base">
-                Tên đăng nhập
+                Họ tên
               </label>
               <input
                 type="text"
-                placeholder="Nhập tên đăng nhập"
+                placeholder="Nhập họ tên của bạn"
                 value={formData.username}
                 onChange={(e) => {
                   setFormData({ ...formData, username: e.target.value })
@@ -186,14 +227,17 @@ const Register = () => {
               </label>
               <input
                 type="tel"
-                placeholder="Nhập số điện thoại"
+                placeholder="Nhập số điện thoại (9-10 số)"
                 value={formData.Phone}
                 onChange={(e) => {
-                  setFormData({ ...formData, Phone: e.target.value })
+                  // Chỉ cho phép nhập số
+                  const value = e.target.value.replace(/\D/g, '')
+                  setFormData({ ...formData, Phone: value })
                   if (validationErrors.phone) {
                     setValidationErrors({ ...validationErrors, phone: undefined })
                   }
                 }}
+                maxLength={10}
                 className={`w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-sm md:text-base ${
                   validationErrors.phone ? 'border-red-500' : 'border-transparent'
                 }`}

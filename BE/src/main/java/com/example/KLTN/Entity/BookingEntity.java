@@ -27,7 +27,7 @@ public class BookingEntity {
     private LocalDate checkOutDate;
     private BigDecimal totalPrice;
     private String qrUrl;
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "bookings", "wallet", "role"})
     @JoinColumn(name = "user_id")
     private UsersEntity user;

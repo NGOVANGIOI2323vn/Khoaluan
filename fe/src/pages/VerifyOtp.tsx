@@ -18,8 +18,9 @@ const VerifyOtp = () => {
   const { showSuccess } = useToast()
 
   const validateOtp = (otpValue: string) => {
+    // OTP validation: phải đúng 6 chữ số (0-9) - khớp với BE (RandomOTP.generateOTP(6))
     const otpRegex = /^[0-9]{6}$/
-    return otpRegex.test(otpValue)
+    return otpRegex.test(otpValue.trim())
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,20 +33,29 @@ const VerifyOtp = () => {
       return
     }
     
-    if (!otp.trim()) {
+    const trimmedOtp = otp.trim()
+    
+    if (!trimmedOtp) {
       setOtpError('Mã OTP là bắt buộc')
       return
     }
     
-    if (!validateOtp(otp)) {
+    if (trimmedOtp.length !== 6) {
       setOtpError('Mã OTP phải có đúng 6 chữ số')
+      return
+    }
+    
+    if (!validateOtp(trimmedOtp)) {
+      setOtpError('Mã OTP chỉ được chứa số (0-9)')
       return
     }
     
     setLoading(true)
 
     try {
-      const response = await authService.verifyOtp({ email, otp })
+      // Làm sạch OTP (chỉ giữ số) và trim trước khi gửi lên BE
+      const cleanedOtp = trimmedOtp.replace(/\D/g, '')
+      const response = await authService.verifyOtp({ email, otp: cleanedOtp })
       if (response.message) {
         showSuccess('Xác thực email thành công! Bạn có thể đăng nhập ngay.')
         setTimeout(() => navigate('/login'), 1500)
@@ -112,9 +122,12 @@ const VerifyOtp = () => {
               </label>
               <input
                 type="text"
-                placeholder="Nhập mã OTP"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Nhập mã OTP (6 chữ số)"
                 value={otp}
                 onChange={(e) => {
+                  // Chỉ cho phép nhập số, tối đa 6 chữ số - khớp với BE (RandomOTP.generateOTP(6))
                   const value = e.target.value.replace(/\D/g, '').slice(0, 6)
                   setOtp(value)
                   if (otpError) {

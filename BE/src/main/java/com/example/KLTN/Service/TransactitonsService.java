@@ -7,6 +7,7 @@ import com.example.KLTN.Service.Impl.TransactitonsServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -24,6 +25,9 @@ public class TransactitonsService implements TransactitonsServiceImpl {
     private final BookingRepository bookingRepository;
     private final Booking_transactionsService booking_transactionsService;
     private final QrCodeService qrCodeService;
+    
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
 
     // ================== Callback Failed ==================
@@ -171,15 +175,22 @@ public class TransactitonsService implements TransactitonsServiceImpl {
     }
     
     private String createContentQr(UsersEntity user, BookingEntity booking) {
-        return "Name: " + user.getUsername() +
-                "\nKhách Sạn: " + booking.getHotel().getName() +
-                "\nĐịa chỉ: " + booking.getHotel().getAddress() +
-                "\nPhòng: " + booking.getRooms().getNumber() +
-                "\nCheck-in: " + booking.getCheckInDate() +
-                "\nCheck-out: " + booking.getCheckOutDate() +
-                "\nSố người: " + booking.getRooms().getCapacity() +
-                "\nGiá Phòng: " + booking.getTotalPrice() +
-                "\nThanh Toán: " + "Đã Thanh toán";
+        // Tạo URL để quét QR code mở trang thông tin đẹp
+        String qrUrl = frontendUrl + "/qr/" + booking.getId();
+        
+        // Vẫn giữ thông tin text để có thể đọc trực tiếp nếu cần
+        return "THÔNG TIN ĐẶT PHÒNG\n" +
+                "Mã đặt phòng: #" + booking.getId() + "\n" +
+                "Khách hàng: " + user.getUsername() + "\n" +
+                "Khách Sạn: " + booking.getHotel().getName() + "\n" +
+                "Địa chỉ: " + booking.getHotel().getAddress() + "\n" +
+                "Phòng: " + booking.getRooms().getNumber() + "\n" +
+                "Check-in: " + booking.getCheckInDate() + "\n" +
+                "Check-out: " + booking.getCheckOutDate() + "\n" +
+                "Số người: " + booking.getRooms().getCapacity() + "\n" +
+                "Giá Phòng: " + booking.getTotalPrice() + " VND\n" +
+                "Trạng thái: Đã thanh toán\n\n" +
+                "Xem chi tiết: " + qrUrl;
     }
 
     @Override

@@ -47,4 +47,9 @@ public class BookingController {
     public ResponseEntity<Apireponsi<List<BookingEntity>>> getBookingsByRoom(@PathVariable Long roomId) {
         return bookingService.getBookingsByRoom(roomId);
     }
+    
+    @GetMapping("/{id}")
+    public ResponseEntity<Apireponsi<BookingEntity>> getBookingById(@PathVariable Long id) {
+        return bookingService.getBookingById(id);
+    }
 }

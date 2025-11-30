@@ -28,14 +28,16 @@ const Contact = () => {
   }>({})
 
   const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
+    // Email validation: tên@domain.extension
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    return emailRegex.test(email.trim())
   }
 
   const validatePhone = (phone: string) => {
     if (!phone) return true // Phone is optional
-    const phoneRegex = /^[0-9+\-\s()]{9,15}$/
-    return phoneRegex.test(phone.replace(/\s/g, ''))
+    // Phone validation: 9-10 chữ số (khớp với BE)
+    const cleanedPhone = phone.replace(/\D/g, '')
+    return /^[0-9]{9,10}$/.test(cleanedPhone)
   }
 
   useEffect(() => {
@@ -83,7 +85,12 @@ const Contact = () => {
     }
     
     if (formData.phone && !validatePhone(formData.phone)) {
-      errors.phone = 'Số điện thoại không hợp lệ (9-15 số)'
+      const cleanedPhone = formData.phone.replace(/\D/g, '')
+      if (cleanedPhone.length < 9 || cleanedPhone.length > 10) {
+        errors.phone = 'Số điện thoại phải có 9 hoặc 10 chữ số'
+      } else {
+        errors.phone = 'Số điện thoại chỉ được chứa số (0-9)'
+      }
     }
     
     if (!formData.message.trim()) {
@@ -98,7 +105,15 @@ const Contact = () => {
     }
     
     try {
-      const response = await infoService.createContactMessage(formData)
+      // Làm sạch dữ liệu trước khi gửi
+      const cleanedData = {
+        ...formData,
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone ? formData.phone.replace(/\D/g, '') : '',
+        message: formData.message.trim(),
+      }
+      const response = await infoService.createContactMessage(cleanedData)
       if (response.data) {
         showSuccess('Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi trong vòng 24 giờ.')
         setFormData({ name: '', email: '', phone: '', message: '' })
@@ -201,17 +216,20 @@ const Contact = () => {
                 <label className="block text-gray-700 font-semibold mb-2">Số điện thoại</label>
                 <input
                   type="tel"
+                  placeholder="Nhập số điện thoại (9-10 số, tùy chọn)"
                   value={formData.phone}
                   onChange={(e) => {
-                    setFormData({ ...formData, phone: e.target.value })
+                    // Chỉ cho phép nhập số
+                    const value = e.target.value.replace(/\D/g, '')
+                    setFormData({ ...formData, phone: value })
                     if (validationErrors.phone) {
                       setValidationErrors({ ...validationErrors, phone: undefined })
                     }
                   }}
+                  maxLength={10}
                   className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 transition ${
                     validationErrors.phone ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Nhập số điện thoại (tùy chọn)"
                 />
                 {validationErrors.phone && (
                   <p className="mt-1 text-sm text-red-500">{validationErrors.phone}</p>

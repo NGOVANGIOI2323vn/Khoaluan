@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Header from '../components/Header'
 import { bookingService, type PageResponse } from '../services/bookingService'
@@ -6,6 +7,7 @@ import { useToast } from '../hooks/useToast'
 import type { Booking } from '../services/bookingService'
 
 const BookingHistory = () => {
+  const navigate = useNavigate()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -13,6 +15,7 @@ const BookingHistory = () => {
   const [totalPages, setTotalPages] = useState(0)
   const [hasNext, setHasNext] = useState(false)
   const [hasPrevious, setHasPrevious] = useState(false)
+  const [payingBookingId, setPayingBookingId] = useState<number | null>(null)
   const { showSuccess, showError } = useToast()
 
   const fetchBookings = async (page: number = 0) => {
@@ -50,7 +53,7 @@ const BookingHistory = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      setError(error.response?.data?.message || 'Không thể tải lịch sử đặt phòng')
+      setError(error.response?.data?.message || 'Không thể tải lịch sử đặt phòng. Vui lòng thử lại sau.')
     } finally {
       setLoading(false)
     }
@@ -152,25 +155,50 @@ const BookingHistory = () => {
                     </div>
                   </div>
                 </div>
-                {booking.status === 'PENDING' && (
-                  <div className="mt-4 flex flex-col sm:flex-row justify-end gap-2">
+                <div className="mt-4 flex flex-col sm:flex-row justify-end gap-2">
+                  {booking.status === 'PAID' && (
+                    <button
+                      onClick={() => navigate(`/invoice/${booking.id}`)}
+                      className="w-full sm:w-auto bg-blue-600 text-white px-4 md:px-6 py-1.5 md:py-2 rounded hover:bg-blue-700 transition text-sm md:text-base whitespace-nowrap flex items-center justify-center gap-2"
+                    >
+                      📄 Xem hóa đơn
+                    </button>
+                  )}
+                  {booking.status === 'PENDING' && (
                     <button
                       onClick={async () => {
+                        if (payingBookingId) return // Đang xử lý thanh toán khác
                         try {
+                          setPayingBookingId(booking.id)
                           await bookingService.payBooking(booking.id)
                           showSuccess('Thanh toán thành công!')
                           setTimeout(() => window.location.reload(), 1500)
                         } catch (err: unknown) {
                           const error = err as { response?: { data?: { message?: string } } }
-                          showError(error.response?.data?.message || 'Thanh toán thất bại')
+                          showError(error.response?.data?.message || 'Thanh toán không thành công. Vui lòng kiểm tra lại số dư ví hoặc thử lại sau.')
+                          setPayingBookingId(null)
                         }
                       }}
-                      className="w-full sm:w-auto bg-green-600 text-white px-4 md:px-6 py-1.5 md:py-2 rounded hover:bg-green-700 transition text-sm md:text-base whitespace-nowrap"
+                      disabled={payingBookingId !== null}
+                      className={`w-full sm:w-auto px-4 md:px-6 py-1.5 md:py-2 rounded transition text-sm md:text-base whitespace-nowrap flex items-center justify-center gap-2 ${
+                        payingBookingId === booking.id
+                          ? 'bg-gray-400 text-white cursor-not-allowed opacity-75'
+                          : payingBookingId !== null
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
                     >
-                      Thanh toán
+                      {payingBookingId === booking.id ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Đang xử lý...</span>
+                        </>
+                      ) : (
+                        'Thanh toán'
+                      )}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </motion.div>
             ))}
           </div>

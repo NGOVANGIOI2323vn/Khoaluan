@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Column } from '@ant-design/charts'
 import { hotelService, ownerService } from '../services'
@@ -52,6 +52,7 @@ const OwnerDashboard = () => {
   const [bulkDiscount, setBulkDiscount] = useState('')
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const { showSuccess, showError } = useToast()
+  const withdrawsSectionRef = useRef<HTMLDivElement>(null)
 
   const filterHotels = useCallback((hotelsList: Hotel[], query: string) => {
     if (!query.trim()) {
@@ -96,7 +97,7 @@ const OwnerDashboard = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải danh sách khách sạn')
+      showError(error.response?.data?.message || 'Không thể tải danh sách khách sạn. Vui lòng thử lại sau.')
     } finally {
       setLoading(false)
     }
@@ -148,7 +149,7 @@ const OwnerDashboard = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải lịch đặt phòng')
+      showError(error.response?.data?.message || 'Không thể tải lịch đặt phòng. Vui lòng thử lại sau.')
     } finally {
       setLoadingBookings(false)
     }
@@ -170,7 +171,7 @@ const OwnerDashboard = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải doanh thu')
+      showError(error.response?.data?.message || 'Không thể tải thông tin doanh thu. Vui lòng thử lại sau.')
     }
   }, [showError])
 
@@ -194,6 +195,13 @@ const OwnerDashboard = () => {
   useEffect(() => {
     const handleSwitchToWithdrawTab = () => {
       setActiveTab('withdraws')
+      // Scroll xuống phần withdraws sau một chút để đảm bảo DOM đã render
+      setTimeout(() => {
+        withdrawsSectionRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        })
+      }, 100)
     }
     window.addEventListener('switchToWithdrawTab', handleSwitchToWithdrawTab)
     return () => {
@@ -207,8 +215,27 @@ const OwnerDashboard = () => {
     const tab = params.get('tab')
     if (tab === 'withdraws') {
       setActiveTab('withdraws')
+      // Scroll xuống phần withdraws
+      setTimeout(() => {
+        withdrawsSectionRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        })
+      }, 300)
     }
   }, [])
+  
+  // Scroll khi activeTab thay đổi thành withdraws
+  useEffect(() => {
+    if (activeTab === 'withdraws') {
+      setTimeout(() => {
+        withdrawsSectionRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        })
+      }, 100)
+    }
+  }, [activeTab])
 
   const fetchAllBookings = async () => {
     try {
@@ -266,7 +293,7 @@ const OwnerDashboard = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải danh sách đặt phòng')
+      showError(error.response?.data?.message || 'Không thể tải danh sách đặt phòng. Vui lòng thử lại sau.')
     } finally {
       setLoadingAllBookings(false)
     }
@@ -293,7 +320,7 @@ const OwnerDashboard = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải danh sách phòng')
+      showError(error.response?.data?.message || 'Không thể tải danh sách phòng. Vui lòng thử lại sau.')
     }
   }, [showError])
 
@@ -306,7 +333,7 @@ const OwnerDashboard = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải giao dịch')
+      showError(error.response?.data?.message || 'Không thể tải danh sách giao dịch. Vui lòng thử lại sau.')
     }
   }
 
@@ -323,7 +350,7 @@ const OwnerDashboard = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tải yêu cầu rút tiền')
+      showError(error.response?.data?.message || 'Không thể tải danh sách yêu cầu rút tiền. Vui lòng thử lại sau.')
     }
   }
 
@@ -343,7 +370,7 @@ const OwnerDashboard = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể tạo yêu cầu rút tiền')
+      showError(error.response?.data?.message || 'Không thể tạo yêu cầu rút tiền. Vui lòng kiểm tra lại thông tin và thử lại sau.')
     }
   }
 
@@ -400,7 +427,7 @@ const OwnerDashboard = () => {
       fetchHotels(true)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể xóa khách sạn')
+      showError(error.response?.data?.message || 'Không thể xóa khách sạn. Vui lòng thử lại sau.')
     } finally {
       setDeletingHotelId(null)
     }
@@ -413,7 +440,7 @@ const OwnerDashboard = () => {
       showSuccess('Cập nhật giá phòng thành công!')
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể cập nhật giá')
+      showError(error.response?.data?.message || 'Không thể cập nhật giá phòng. Vui lòng thử lại sau.')
     }
   }
 
@@ -440,7 +467,7 @@ const OwnerDashboard = () => {
         promises.push(ownerService.updateRoomImage(selectedRoom.id, imageResult.secure_url))
       }
       if (promises.length === 0) {
-        showError('Không có thay đổi để cập nhật')
+        showError('Không có thay đổi nào để cập nhật. Vui lòng chỉnh sửa thông tin trước khi lưu.')
         return
       }
       await Promise.all(promises)
@@ -449,7 +476,7 @@ const OwnerDashboard = () => {
       fetchRoomBookings(selectedRoom.id)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } }; message?: string }
-      showError(error.response?.data?.message || (error as Error).message || 'Không thể cập nhật phòng')
+      showError(error.response?.data?.message || (error as Error).message || 'Không thể cập nhật thông tin phòng. Vui lòng thử lại sau.')
     }
   }
 
@@ -457,7 +484,7 @@ const OwnerDashboard = () => {
     if (!selectedHotel || !bulkDiscount) return
     const discount = Number(bulkDiscount)
     if (Number.isNaN(discount) || discount < 0 || discount > 100) {
-      showError('Giảm giá phải nằm trong khoảng 0-100%')
+      showError('Giảm giá phải nằm trong khoảng từ 0% đến 100%. Vui lòng nhập lại.')
       return
     }
     try {
@@ -467,7 +494,7 @@ const OwnerDashboard = () => {
       fetchRooms(selectedHotel.id)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể cập nhật giảm giá')
+      showError(error.response?.data?.message || 'Không thể cập nhật giảm giá. Vui lòng thử lại sau.')
     }
   }
 
@@ -478,7 +505,7 @@ const OwnerDashboard = () => {
       showSuccess('Cập nhật trạng thái phòng thành công!')
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể cập nhật trạng thái')
+      showError(error.response?.data?.message || 'Không thể cập nhật trạng thái phòng. Vui lòng thử lại sau.')
     }
   }
 
@@ -1313,6 +1340,7 @@ const OwnerDashboard = () => {
 
             {activeTab === 'withdraws' && (
               <motion.div
+                ref={withdrawsSectionRef}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="space-y-4"
@@ -1501,11 +1529,11 @@ const OwnerDashboard = () => {
         <HotelForm
           onSubmit={async (data: HotelFormData, images: File[]) => {
             if (images.length === 0) {
-              showError('Vui lòng chọn ít nhất một ảnh khách sạn')
+              showError('Vui lòng chọn ít nhất một ảnh cho khách sạn.')
               return
             }
             if (createHotelRooms.length === 0) {
-              showError('Vui lòng thêm ít nhất một phòng')
+              showError('Vui lòng thêm ít nhất một phòng cho khách sạn.')
               return
             }
             const invalidRoom = createHotelRooms.some(
@@ -1517,7 +1545,7 @@ const OwnerDashboard = () => {
                 !room.image,
             )
             if (invalidRoom) {
-              showError('Vui lòng nhập đầy đủ thông tin và ảnh cho từng phòng')
+              showError('Vui lòng nhập đầy đủ thông tin (số phòng, giá) và chọn ảnh cho từng phòng.')
               return
             }
             try {
@@ -1556,7 +1584,7 @@ const OwnerDashboard = () => {
               fetchHotels(true)
             } catch (err: unknown) {
               const error = err as { response?: { data?: { message?: string } }; message?: string }
-              showError(error.response?.data?.message || (error as Error).message || 'Không thể tạo khách sạn')
+              showError(error.response?.data?.message || (error as Error).message || 'Không thể tạo khách sạn. Vui lòng kiểm tra lại thông tin và thử lại sau.')
             } finally {
               setCreateHotelSubmitting(false)
             }
@@ -1689,7 +1717,7 @@ const OwnerDashboard = () => {
                 fetchHotels()
               } catch (err: unknown) {
                 const error = err as { response?: { data?: { message?: string } }; message?: string }
-                showError(error.response?.data?.message || (error as Error).message || 'Không thể cập nhật khách sạn')
+                showError(error.response?.data?.message || (error as Error).message || 'Không thể cập nhật thông tin khách sạn. Vui lòng thử lại sau.')
               }
             }}
             submitLabel="Lưu thay đổi"

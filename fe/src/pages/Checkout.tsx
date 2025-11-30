@@ -91,13 +91,15 @@ const Checkout = () => {
   }>({})
 
   const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
+    // Email validation: tên@domain.extension
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    return emailRegex.test(email.trim())
   }
 
   const validatePhone = (phone: string) => {
-    const phoneRegex = /^[0-9+\-\s()]{9,15}$/
-    return phoneRegex.test(phone.replace(/\s/g, ''))
+    // Phone validation: 9-10 chữ số (khớp với BE)
+    const cleanedPhone = phone.replace(/\D/g, '')
+    return /^[0-9]{9,10}$/.test(cleanedPhone)
   }
   const [roomBookings, setRoomBookings] = useState<Booking[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -153,7 +155,18 @@ const Checkout = () => {
 
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
+  const [accessDenied, setAccessDenied] = useState(false)
   const { showSuccess, showError } = useToast()
+  
+  // Kiểm tra quyền đặt phòng
+  useEffect(() => {
+    const userRole = authService.getUserRole()
+    if (userRole === 'OWNER' || userRole === 'ADMIN') {
+      setAccessDenied(true)
+      showError('Bạn không có quyền đặt phòng. Vui lòng đăng nhập bằng tài khoản người dùng để đặt phòng.')
+      setTimeout(() => navigate('/hotels'), 3000)
+    }
+  }, [navigate, showError])
   
   // Lấy dates từ query params hoặc localStorage
   const savedBooking = localStorage.getItem('bookingInfo')
@@ -464,7 +477,12 @@ const Checkout = () => {
     if (!formData.phone.trim()) {
       errors.phone = 'Số điện thoại là bắt buộc'
     } else if (!validatePhone(formData.phone)) {
-      errors.phone = 'Số điện thoại không hợp lệ (9-15 số)'
+      const cleanedPhone = formData.phone.replace(/\D/g, '')
+      if (cleanedPhone.length < 9 || cleanedPhone.length > 10) {
+        errors.phone = 'Số điện thoại phải có 9 hoặc 10 chữ số'
+      } else {
+        errors.phone = 'Số điện thoại chỉ được chứa số (0-9)'
+      }
     }
     
     setValidationErrors(errors)
@@ -472,17 +490,25 @@ const Checkout = () => {
       return
     }
     
+    // Set loading ngay khi bắt đầu xử lý (để button hiển thị trạng thái ngay)
+    // Đặc biệt quan trọng với VNPay để user thấy button đang loading
+    setLoading(true)
+    
+    // Sử dụng setTimeout để đảm bảo state update được render trước khi tiếp tục
+    // Điều này giúp button hiển thị loading state ngay lập tức
+    await new Promise(resolve => setTimeout(resolve, 0))
+    
     // Lấy thông tin từ localStorage hoặc query params
     const savedBooking = localStorage.getItem('bookingInfo')
     const roomId = searchParams.get('roomId')
     
     if (!savedBooking && !roomId) {
+      setLoading(false)
       showError('Thiếu thông tin đặt phòng. Vui lòng quay lại trang trước.')
       return
     }
     
     try {
-      setLoading(true)
       
       let bookingId: number | null = null
       
@@ -496,11 +522,13 @@ const Checkout = () => {
         
         if (checkInDate < today) {
           showError('Ngày check-in phải từ hôm nay trở đi')
+          setLoading(false)
           return
         }
         
         if (checkOutDate <= checkInDate) {
           showError('Ngày check-out phải sau ngày check-in')
+          setLoading(false)
           return
         }
         
@@ -517,7 +545,8 @@ const Checkout = () => {
           bookingInfo.bookingId = bookingId
           localStorage.setItem('bookingInfo', JSON.stringify(bookingInfo))
         } else {
-          showError(bookingResponse.message || 'Không thể tạo booking')
+          showError(bookingResponse.message || 'Không thể tạo đặt phòng. Vui lòng thử lại sau.')
+          setLoading(false)
           return
         }
       } else if (savedBooking) {
@@ -527,7 +556,8 @@ const Checkout = () => {
       }
       
       if (!bookingId) {
-        showError('Không tìm thấy thông tin booking')
+        showError('Không tìm thấy thông tin đặt phòng. Vui lòng quay lại và thử lại.')
+        setLoading(false)
         return
       }
       
@@ -539,15 +569,18 @@ const Checkout = () => {
         if (paymentResponse.data) {
           showSuccess('Thanh toán thành công! Bạn sẽ nhận được email xác nhận trong vài phút.')
           localStorage.removeItem('bookingInfo')
+          setLoading(false) // Tắt loading trước khi navigate
           setTimeout(() => navigate('/booking-history'), 1500)
         } else {
-          showError(paymentResponse.message || 'Thanh toán thất bại')
+          setLoading(false) // Tắt loading nếu thanh toán thất bại
+          showError(paymentResponse.message || 'Thanh toán không thành công. Vui lòng kiểm tra lại số dư ví hoặc thử lại sau.')
         }
       } else if (paymentMethod === 'vnpay') {
         // Thanh toán qua VNPay
         const userId = localStorage.getItem('userId')
         if (!userId) {
           showError('Không tìm thấy thông tin người dùng')
+          setLoading(false)
           return
         }
 
@@ -555,6 +588,7 @@ const Checkout = () => {
         const orderInfo = `Thanh toan dat phong|bookingId:${bookingId}|userId:${userId}`
         
         try {
+          // Loading sẽ tiếp tục hiển thị trong lúc chờ API response
           const vnpayResponse = await vnpayService.createPayment(
             finalAmount,
             orderInfo,
@@ -564,31 +598,98 @@ const Checkout = () => {
           if (vnpayResponse?.url) {
             // Lưu bookingId vào localStorage để xử lý sau khi callback
             localStorage.setItem('pendingBookingId', bookingId.toString())
-            // Redirect đến VNPay
+            // Loading overlay vẫn hiển thị, message đã được cập nhật ở trên
+            // Redirect đến VNPay - loading sẽ tự động ẩn khi trang redirect
             window.location.href = vnpayResponse.url
+            // Return ngay sau khi redirect để không chạy code phía dưới
+            return
           } else {
-            showError('Không thể tạo link thanh toán VNPay')
+            setLoading(false) // Chỉ tắt loading nếu không redirect được
+            showError('Không thể tạo liên kết thanh toán. Vui lòng thử lại sau hoặc chọn phương thức thanh toán khác.')
+            return
           }
         } catch (err: unknown) {
+          setLoading(false) // Tắt loading nếu có lỗi
           const error = err as { response?: { data?: { message?: string } } }
-          showError(error.response?.data?.message || 'Không thể tạo link thanh toán VNPay')
+          showError(error.response?.data?.message || 'Không thể tạo liên kết thanh toán. Vui lòng thử lại sau hoặc chọn phương thức thanh toán khác.')
+          return
         }
-        return // Không cần setLoading(false) vì đã redirect
       } else {
+        setLoading(false)
         showError('Vui lòng chọn phương thức thanh toán')
+        return
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      const errorMessage = error.response?.data?.message || 'Có lỗi xảy ra khi đặt phòng'
+      const errorMessage = error.response?.data?.message || 'Có lỗi xảy ra khi đặt phòng. Vui lòng thử lại sau hoặc liên hệ hỗ trợ nếu vấn đề vẫn tiếp tục.'
       showError(errorMessage)
-    } finally {
-      setLoading(false)
+      setLoading(false) // Tắt loading nếu có lỗi
     }
+    // Không dùng finally vì nếu redirect đến VNPay thành công thì không cần tắt loading
+    // Loading sẽ tự động ẩn khi trang redirect
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-xl shadow-lg p-8 text-center"
+          >
+            <div className="text-6xl mb-4">🚫</div>
+            <h1 className="text-2xl font-bold text-red-600 mb-4">Không có quyền đặt phòng</h1>
+            <p className="text-gray-600 mb-6">
+              Bạn không có quyền đặt phòng. Vui lòng đăng nhập bằng tài khoản người dùng để đặt phòng.
+            </p>
+            <button
+              onClick={() => navigate('/hotels')}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+            >
+              Quay lại danh sách khách sạn
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 relative">
       <Header />
+      
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center"
+          >
+            <div className="mb-6">
+              <div className="relative w-20 h-20 mx-auto">
+                <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              {paymentMethod === 'vnpay' ? 'Đang chuyển đến cổng thanh toán VNPay...' : 'Đang xử lý thanh toán...'}
+            </h3>
+            <p className="text-gray-600 mb-4">
+              {paymentMethod === 'vnpay' 
+                ? 'Vui lòng đợi trong giây lát, bạn sẽ được chuyển đến trang thanh toán VNPay'
+                : 'Vui lòng đợi trong giây lát, không đóng trang này'}
+            </p>
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <span className="animate-pulse">●</span>
+              <span className="animate-pulse" style={{ animationDelay: '0.2s' }}>●</span>
+              <span className="animate-pulse" style={{ animationDelay: '0.4s' }}>●</span>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         <motion.div
@@ -643,7 +744,8 @@ const Checkout = () => {
                         }
                       }}
                       min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={loading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                       required
                     />
                   </div>
@@ -654,7 +756,8 @@ const Checkout = () => {
                       value={checkOut}
                       onChange={(e) => setCheckOut(e.target.value)}
                       min={checkIn || new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={loading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                       required
                     />
                   </div>
@@ -856,10 +959,11 @@ const Checkout = () => {
                 {paymentMethods.map((method) => (
                   <motion.button
                     key={method.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={loading ? {} : { scale: 1.02 }}
+                    whileTap={loading ? {} : { scale: 0.98 }}
                     onClick={() => setPaymentMethod(method.id)}
-                    className={`w-full p-4 rounded-lg border-2 transition text-left ${
+                    disabled={loading}
+                    className={`w-full p-4 rounded-lg border-2 transition text-left disabled:opacity-50 disabled:cursor-not-allowed ${
                       paymentMethod === method.id
                         ? 'border-blue-600 bg-blue-50'
                         : 'border-gray-300 hover:border-blue-300'
@@ -908,7 +1012,8 @@ const Checkout = () => {
                         setValidationErrors({ ...validationErrors, email: undefined })
                       }
                     }}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 ${
+                    disabled={loading}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                       validationErrors.email ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="your@email.com"
@@ -921,17 +1026,21 @@ const Checkout = () => {
                   <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Số điện thoại</label>
                   <input
                     type="tel"
+                    placeholder="Nhập số điện thoại (9-10 số)"
                     value={formData.phone}
                     onChange={(e) => {
-                      setFormData({ ...formData, phone: e.target.value })
+                      // Chỉ cho phép nhập số
+                      const value = e.target.value.replace(/\D/g, '')
+                      setFormData({ ...formData, phone: value })
                       if (validationErrors.phone) {
                         setValidationErrors({ ...validationErrors, phone: undefined })
                       }
                     }}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 ${
+                    maxLength={10}
+                    disabled={loading}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                       validationErrors.phone ? 'border-red-500' : 'border-gray-300'
                     }`}
-                    placeholder="+84 123 456 789"
                   />
                   {validationErrors.phone && (
                     <p className="mt-1 text-sm text-red-500">{validationErrors.phone}</p>
@@ -1007,17 +1116,28 @@ const Checkout = () => {
               </div>
 
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={loading ? {} : { scale: 1.02 }}
+                whileTap={loading ? {} : { scale: 0.98 }}
                 onClick={handleSubmit}
                 disabled={loading}
-                className={`w-full py-4 rounded-xl font-semibold transition-all shadow-lg mb-4 text-base ${
+                className={`w-full py-4 rounded-xl font-semibold transition-all shadow-lg mb-4 text-base flex items-center justify-center gap-2 ${
                   loading
-                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    ? 'bg-gray-400 text-white cursor-not-allowed opacity-75'
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/50'
                 }`}
               >
-                {loading ? 'Đang xử lý...' : 'Xác nhận thanh toán'}
+                {loading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>
+                      {paymentMethod === 'vnpay' 
+                        ? 'Đang chuyển đến VNPay...' 
+                        : 'Đang xử lý thanh toán...'}
+                    </span>
+                  </>
+                ) : (
+                  'Xác nhận thanh toán'
+                )}
               </motion.button>
 
               <p className="text-xs text-gray-500 text-center">

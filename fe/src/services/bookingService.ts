@@ -26,6 +26,7 @@ export interface Booking {
     type: string
     price: number
     capacity: number
+    discountPercent?: number
   }
 }
 
@@ -73,6 +74,11 @@ export const bookingService = {
 
   getBookingsByRoom: async (roomId: number) => {
     const response = await api.get<ApiResponse<Booking[]>>(`/bookings/rooms/${roomId}`)
+    return response.data
+  },
+
+  getBookingById: async (bookingId: number) => {
+    const response = await api.get<ApiResponse<Booking>>(`/bookings/${bookingId}`)
     return response.data
   },
 }

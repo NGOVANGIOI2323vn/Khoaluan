@@ -5,6 +5,7 @@ import Header from '../components/Header'
 import RoomAvailability from '../components/RoomAvailability'
 import { hotelService } from '../services/hotelService'
 import { useToast } from '../hooks/useToast'
+import { authService } from '../services/authService'
 import type { Hotel, Room } from '../services/hotelService'
 // Booking form data interface
 interface BookingFormData {
@@ -24,7 +25,16 @@ const Booking = () => {
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const { showWarning } = useToast()
+  const { showWarning, showError } = useToast()
+  
+  // Kiểm tra quyền đặt phòng
+  useEffect(() => {
+    const userRole = authService.getUserRole()
+    if (userRole === 'OWNER' || userRole === 'ADMIN') {
+      setError('Bạn không có quyền đặt phòng. Vui lòng đăng nhập bằng tài khoản người dùng để đặt phòng.')
+      showError('Chỉ người dùng mới có thể đặt phòng. Vui lòng đăng nhập bằng tài khoản người dùng.')
+    }
+  }, [showError])
 
   // Lấy thông tin từ query params hoặc state nếu có
   const searchParams = new URLSearchParams(location.search)
@@ -60,7 +70,7 @@ const Booking = () => {
         }
       } catch (err: unknown) {
         const error = err as { response?: { data?: { message?: string } } }
-        setError(error.response?.data?.message || 'Không thể tải thông tin khách sạn')
+        setError(error.response?.data?.message || 'Không thể tải thông tin khách sạn. Vui lòng thử lại sau.')
       } finally {
         setLoading(false)
       }

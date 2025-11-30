@@ -15,6 +15,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
     @Query("SELECT b FROM BookingEntity b " +
            "LEFT JOIN FETCH b.hotel " +
            "LEFT JOIN FETCH b.rooms " +
+           "LEFT JOIN FETCH b.user " +
            "WHERE b.user = :user " +
            "ORDER BY b.bookingDate DESC")
     List<BookingEntity> findByUserOrderByBookingDateDesc(@Param("user") UsersEntity user);
@@ -22,6 +23,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
     @Query("SELECT b FROM BookingEntity b " +
            "LEFT JOIN FETCH b.hotel " +
            "LEFT JOIN FETCH b.rooms " +
+           "LEFT JOIN FETCH b.user " +
            "WHERE b.user = :user " +
            "ORDER BY b.bookingDate DESC")
     Page<BookingEntity> findByUserOrderByBookingDateDesc(@Param("user") UsersEntity user, Pageable pageable);

@@ -204,9 +204,16 @@ const WithdrawForm = ({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {isSubmitting ? 'Đang xử lý...' : 'Gửi yêu cầu'}
+          {isSubmitting ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span>Đang xử lý...</span>
+            </>
+          ) : (
+            'Gửi yêu cầu'
+          )}
         </button>
       </div>
     </form>

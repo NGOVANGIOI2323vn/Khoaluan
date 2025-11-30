@@ -16,9 +16,14 @@ const hotelSchema = z.object({
     .max(200, 'Địa chỉ không được quá 200 ký tự'),
   phone: z
     .string()
-    .regex(/^[0-9+\-\s()]+$/, 'Số điện thoại không hợp lệ')
-    .min(10, 'Số điện thoại phải có ít nhất 10 số')
-    .max(15, 'Số điện thoại không được quá 15 số'),
+    .min(1, 'Số điện thoại là bắt buộc')
+    .regex(/^[0-9]{9,10}$/, 'Số điện thoại phải có 9 hoặc 10 chữ số (chỉ số)')
+    .refine((val) => {
+      const cleaned = val.replace(/\D/g, '')
+      return cleaned.length >= 9 && cleaned.length <= 10
+    }, {
+      message: 'Số điện thoại phải có 9 hoặc 10 chữ số',
+    }),
   description: z.string().max(1000, 'Mô tả không được quá 1000 ký tự').optional(),
 })
 
@@ -62,7 +67,15 @@ const HotelForm = ({
   })
 
   const onFormSubmit = async (data: HotelFormData) => {
-    await onSubmit(data, images)
+    // Làm sạch số điện thoại trước khi gửi
+    const cleanedData = {
+      ...data,
+      phone: data.phone.replace(/\D/g, ''),
+      name: data.name.trim(),
+      address: data.address.trim(),
+      description: data.description?.trim() || '',
+    }
+    await onSubmit(cleanedData, images)
   }
 
   return (
@@ -113,14 +126,21 @@ const HotelForm = ({
           Số điện thoại <span className="text-red-500">*</span>
         </label>
         <input
-          {...register('phone')}
           type="tel"
+          placeholder="Nhập số điện thoại (9-10 số)"
+          maxLength={10}
+          {...register('phone', {
+            onChange: (e) => {
+              // Chỉ cho phép nhập số
+              const value = e.target.value.replace(/\D/g, '')
+              e.target.value = value
+            },
+          })}
           className={`
             w-full px-4 py-3 rounded-xl border-2 transition-all
             ${errors.phone ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}
             focus:outline-none focus:ring-2 focus:ring-blue-500/20
           `}
-          placeholder="VD: 0123456789"
         />
         {errors.phone && (
           <p className="mt-1 text-sm text-red-500">{errors.phone.message}</p>

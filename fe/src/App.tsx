@@ -15,6 +15,8 @@ import OwnerDashboard from './pages/OwnerDashboard'
 import Profile from './pages/Profile'
 import Wallet from './pages/Wallet'
 import VnpayCallback from './pages/VnpayCallback'
+import InvoicePage from './pages/InvoicePage'
+import QRScanResult from './pages/QRScanResult'
 import NotFound from './pages/NotFound'
 import OAuth2Callback from './pages/OAuth2Callback'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -42,6 +44,15 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/invoice/:bookingId"
+          element={
+            <ProtectedRoute requiredRole="USER">
+              <InvoicePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/qr/:bookingId" element={<QRScanResult />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/checkout" element={<Checkout />} />

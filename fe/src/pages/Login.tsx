@@ -53,7 +53,7 @@ const Login = () => {
       const role = authService.getUserRole()
       
       if (!token) {
-        setError('Đăng nhập thất bại: Không nhận được token')
+        setError('Đăng nhập không thành công. Vui lòng thử lại sau.')
         return
       }
       
@@ -79,7 +79,7 @@ const Login = () => {
             return
           }
         }
-        setError('Đăng nhập thất bại: Không nhận được role')
+        setError('Đăng nhập không thành công. Vui lòng thử lại sau.')
         return
       }
       
@@ -95,7 +95,7 @@ const Login = () => {
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      setError(error.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.')
+      setError(error.response?.data?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản và mật khẩu.')
     } finally {
       setLoading(false)
     }
