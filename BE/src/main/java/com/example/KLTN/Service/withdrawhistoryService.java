@@ -1,6 +1,5 @@
 package com.example.KLTN.Service;
 
-
 import com.example.KLTN.Config.HTTPstatus.HttpResponseUtil;
 import com.example.KLTN.Entity.UsersEntity;
 import com.example.KLTN.Entity.WalletTransactionEntity;
@@ -19,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class withdrawhistoryService implements withdrawhistoryServiceImpl {
@@ -60,6 +60,7 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             return httpResponseUtil.error("Create Error", e);
         }
     }
+
     @Override
     public ResponseEntity<Apireponsi<withDrawHistoryEntity>> approveWithdraw(Long id) {
         try {
@@ -85,12 +86,14 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             withdraw.setStatus(withDrawHistoryEntity.Status.resolved);
             withdraw.setUpdate_AT(LocalDateTime.now());
             saveWithdraw(withdraw);
-            walletTransactionService.CreateWalletTransactionUUser(user, withdraw.getAmount(), "Rút Tiền", WalletTransactionEntity.TransactionType.PAYMENT);
+            walletTransactionService.CreateWalletTransactionUUser(user, withdraw.getAmount(), "Rút Tiền",
+                    WalletTransactionEntity.TransactionType.PAYMENT);
             return httpResponseUtil.ok("Đã phê duyệt rút tiền");
         } catch (Exception e) {
             return httpResponseUtil.error("Approve Error", e);
         }
     }
+
     @Override
     public ResponseEntity<Apireponsi<withDrawHistoryEntity>> rejectWithdraw(Long id) {
         try {
@@ -111,14 +114,15 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             return httpResponseUtil.error("Reject Error", e);
         }
     }
-// ====================================================================================//
+
+    // ====================================================================================//
     @Override
     public withDrawHistoryEntity findByid(Long id) {
         return withdrawRepository.findById(id).orElse(null);
     }
 
-
     private final withdrawhistoryRepository withdrawRepository;
+
     @Override
     public void saveWithdraw(withDrawHistoryEntity withdraw) {
         withdrawRepository.save(withdraw);
@@ -128,7 +132,7 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
     public List<withDrawHistoryEntity> findAllWithdrawHistory() {
         return withdrawRepository.findAll();
     }
-    
+
     // Lấy tất cả withdraws (cho admin)
     public ResponseEntity<Apireponsi<List<withDrawHistoryEntity>>> getAllWithdraws() {
         try {
@@ -138,7 +142,7 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             return httpResponseUtil.error("Error getting all withdraws", e);
         }
     }
-    
+
     // Lấy withdraws của user hiện tại
     public ResponseEntity<Apireponsi<List<withDrawHistoryEntity>>> getMyWithdraws() {
         try {
@@ -146,18 +150,18 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
                 return httpResponseUtil.badRequest("User not authenticated");
             }
-            
+
             String username = auth.getName();
             UsersEntity user = userService.FindByUsername(username);
             if (user == null) {
                 return httpResponseUtil.notFound("User not found");
             }
-            
+
             WalletsEntity wallet = wallettService.GetWallet(user);
             if (wallet == null) {
                 return httpResponseUtil.notFound("Wallet not found");
             }
-            
+
             List<withDrawHistoryEntity> withdraws = withdrawRepository.findByWalletsEntityId(wallet.getId());
             return httpResponseUtil.ok("Get my withdraws success", withdraws);
         } catch (Exception e) {
