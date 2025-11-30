@@ -39,5 +39,6 @@ public class TransactitonsEntity {
     private Status status; // pending, success, failed
     private String vnpTxnRef;   // Mã giao dịch VNPAY
     private String vnpOrderInfo; // Nội dung đơn hàng
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 }

@@ -40,7 +40,9 @@ const AdminDashboard = () => {
   const fetchTransactions = useCallback(async () => {
     try {
       const response = await adminService.getAllTransactions()
-      if (response.data) setTransactions(response.data)
+      if (response.data) {
+        setTransactions(response.data)
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
       console.error('Error fetching transactions:', error)
@@ -267,7 +269,7 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -544,13 +546,29 @@ const AdminDashboard = () => {
                               {transaction.bookingEntity?.hotel?.name || 'N/A'}
                             </td>
                             <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap">
-                              {Number(transaction.amount).toLocaleString('vi-VN')} VND
+                              {transaction.amount 
+                                ? (typeof transaction.amount === 'string' 
+                                    ? Number(transaction.amount).toLocaleString('vi-VN') 
+                                    : Number(transaction.amount).toLocaleString('vi-VN'))
+                                : '0'} VND
                             </td>
                             <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-blue-600 whitespace-nowrap">
-                              {Number(transaction.Admin_mount).toLocaleString('vi-VN')} VND
+                              {(() => {
+                                // Handle cả 2 trường hợp: Admin_mount (PascalCase) và admin_mount (snake_case)
+                                const adminMount = transaction.Admin_mount ?? transaction.admin_mount
+                                if (adminMount == null || adminMount === undefined) return '0'
+                                const numValue = typeof adminMount === 'string' ? parseFloat(adminMount) : Number(adminMount)
+                                return isNaN(numValue) ? '0' : numValue.toLocaleString('vi-VN')
+                              })()} VND
                             </td>
                             <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-green-600 whitespace-nowrap">
-                              {Number(transaction.User_mount).toLocaleString('vi-VN')} VND
+                              {(() => {
+                                // Handle cả 2 trường hợp: User_mount (PascalCase) và user_mount (snake_case)
+                                const userMount = transaction.User_mount ?? transaction.user_mount
+                                if (userMount == null || userMount === undefined) return '0'
+                                const numValue = typeof userMount === 'string' ? parseFloat(userMount) : Number(userMount)
+                                return isNaN(numValue) ? '0' : numValue.toLocaleString('vi-VN')
+                              })()} VND
                             </td>
                             <td className="px-2 sm:px-4 py-2 sm:py-3">
                               <span

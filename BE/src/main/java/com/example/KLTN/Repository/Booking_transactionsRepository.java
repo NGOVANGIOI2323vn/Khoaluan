@@ -12,9 +12,11 @@ import java.util.List;
 @Repository
 public interface Booking_transactionsRepository extends JpaRepository<Booking_transactionsEntity, Long> {
     // Lấy transactions của owner (từ hotels của owner)
-    @Query("SELECT t FROM Booking_transactionsEntity t " +
+    @Query("SELECT DISTINCT t FROM Booking_transactionsEntity t " +
            "JOIN FETCH t.bookingEntity b " +
-           "JOIN FETCH b.hotel h " +
+           "LEFT JOIN FETCH b.hotel h " +
+           "LEFT JOIN FETCH b.rooms r " +
+           "LEFT JOIN FETCH b.user u " +
            "WHERE h.owner.id = :ownerId")
     List<Booking_transactionsEntity> findByOwnerId(@Param("ownerId") Long ownerId);
     
@@ -64,4 +66,11 @@ public interface Booking_transactionsRepository extends JpaRepository<Booking_tr
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Booking_transactionsEntity t " +
            "WHERE t.status = 'APPROVED'")
     BigDecimal getTotalSystemRevenue();
+    
+    // Lấy tất cả transactions với JOIN FETCH bookingEntity và hotel
+    @Query("SELECT DISTINCT t FROM Booking_transactionsEntity t " +
+           "LEFT JOIN FETCH t.bookingEntity b " +
+           "LEFT JOIN FETCH b.hotel h " +
+           "LEFT JOIN FETCH h.owner")
+    List<Booking_transactionsEntity> findAllWithDetails();
 }

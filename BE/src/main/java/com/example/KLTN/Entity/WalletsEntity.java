@@ -25,6 +25,7 @@ public class WalletsEntity {
     private Long id;
 
     @Column(nullable = false)
+    @Builder.Default
     private BigDecimal balance = BigDecimal.ZERO;
 
     // Quan hệ 1-1 với User
@@ -35,5 +36,6 @@ public class WalletsEntity {
 
     // Quan hệ 1-N: một ví có nhiều giao dịch
     @OneToMany(mappedBy = "wallet", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<TransactitonsEntity> transactions = new ArrayList<>();
 }

@@ -37,7 +37,17 @@ public class withdrawmoneyController {
     }
     
     @GetMapping("/my-withdraws")
-    public ResponseEntity<Apireponsi<List<withDrawHistoryEntity>>> getMyWithdraws() {
+    public ResponseEntity<?> getMyWithdraws(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        // Nếu không có page/size, trả về tất cả (backward compatibility)
+        if (page == null && size == null) {
         return withdrawhistoryService.getMyWithdraws();
+        }
+        // Nếu có page/size, trả về phân trang
+        int validPage = page != null && page >= 0 ? page : 0;
+        int validSize = size != null && size > 0 ? size : 8;
+        return withdrawhistoryService.getMyWithdrawsPaginated(validPage, validSize);
     }
 }

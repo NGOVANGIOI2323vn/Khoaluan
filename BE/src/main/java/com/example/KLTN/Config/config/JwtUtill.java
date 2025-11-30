@@ -22,10 +22,8 @@ public class JwtUtill {
     public JwtUtill() {
     }
 
-    long expirationTime = 1000 * 60 * 60;
-
     public String generateToken(String username) {
-        return Jwts.builder().setSubject(username).setIssuedAt(new Date()).setExpiration(new Date(System.currentTimeMillis() + 36000000L)).signWith(Keys.hmacShaKeyFor("TXlTdXBlclNlY3JldEtleUZvckpXVEdlbmVyYXRpb24xMjM0NTY3ODkwIUAj".getBytes(StandardCharsets.UTF_8)), SignatureAlgorithm.HS256).compact();
+        return Jwts.builder().setSubject(username).setIssuedAt(new Date()).setExpiration(new Date(System.currentTimeMillis() + JWT_EXPIRATION)).signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8)), SignatureAlgorithm.HS256).compact();
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
@@ -42,7 +40,7 @@ public class JwtUtill {
     }
 
     private Claims extractAllClaims(String token) {
-        return (Claims) Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor("TXlTdXBlclNlY3JldEtleUZvckpXVEdlbmVyYXRpb24xMjM0NTY3ODkwIUAj".getBytes(StandardCharsets.UTF_8))).build().parseClaimsJws(token).getBody();
+        return (Claims) Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8))).build().parseClaimsJws(token).getBody();
     }
 
     private Boolean isTokenExpired(String token) {

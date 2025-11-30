@@ -8,8 +8,10 @@ export interface AdminPercent {
 export interface BookingTransaction {
   id: number
   amount: number
-  User_mount: number
-  Admin_mount: number
+  User_mount?: number
+  Admin_mount?: number
+  user_mount?: number  // BE trả về snake_case
+  admin_mount?: number  // BE trả về snake_case
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   bookingEntity?: {
     id: number

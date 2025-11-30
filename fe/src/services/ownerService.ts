@@ -40,6 +40,16 @@ export interface ApiResponse<T> {
   status: string
 }
 
+export interface PageResponse<T> {
+  content: T[]
+  totalPages: number
+  totalElements: number
+  currentPage: number
+  pageSize: number
+  hasNext: boolean
+  hasPrevious: boolean
+}
+
 export const ownerService = {
   // Hotel Management
   createHotel: async (hotelData: CreateHotelData, hotelImageUrls?: string[], roomsImageUrls?: string[]) => {
@@ -162,8 +172,11 @@ export const ownerService = {
     return response.data
   },
 
-  getMyWithdraws: async () => {
-    const response = await api.get<ApiResponse<WithdrawRequest[]>>('/withdraws/my-withdraws')
+  getMyWithdraws: async (page?: number, size?: number) => {
+    const params: { page?: number; size?: number } = {}
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    const response = await api.get<ApiResponse<WithdrawRequest[] | PageResponse<WithdrawRequest>>>('/withdraws/my-withdraws', { params })
     return response.data
   },
 
@@ -178,12 +191,29 @@ export const ownerService = {
     const response = await api.get<ApiResponse<WalletBalance>>('/wallet/balance')
     return response.data
   },
+
+  getWalletTransactions: async (page?: number, size?: number, type?: 'DEPOSIT' | 'PAYMENT') => {
+    const params: { page?: number; size?: number; type?: string } = {}
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    if (type) params.type = type
+    const response = await api.get<ApiResponse<WalletTransaction[] | PageResponse<WalletTransaction>>>('/wallet/transactions', { params })
+    return response.data
+  },
 }
 
 export interface WalletBalance {
   balance: number
   userId: number
   username: string
+}
+
+export interface WalletTransaction {
+  id: number
+  type: 'DEPOSIT' | 'PAYMENT'
+  amount: number
+  description: string
+  createdAt: string
 }
 
 export interface BookingTransaction {
@@ -194,16 +224,29 @@ export interface BookingTransaction {
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   bookingEntity?: {
     id: number
+    status?: string  // Trạng thái thanh toán của booking: PAID, PENDING, FAILED, REFUNDED
     totalPrice: number
     checkInDate: string
     checkOutDate: string
+    bookingDate?: string
     hotel?: {
       id: number
       name: string
+      address?: string
     }
     user?: {
       id: number
       username: string
+      email?: string
+      phone?: string
+    } | number  // Có thể là object hoặc chỉ là id
+    rooms?: {
+      id: number
+      Number?: string
+      number?: string
+      type: string
+      price: number
+      capacity: number
     }
   }
 }

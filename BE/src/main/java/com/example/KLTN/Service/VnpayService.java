@@ -30,50 +30,99 @@ public class VnpayService {
     @Autowired
 private UserService userService;
     public String createRedirectUrl(HttpServletRequest request, long amount, String orderInfo, String orderType) {
-                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String name = authentication.getName();
-        UsersEntity user =userService.FindByUsername(name);
-        Long userId = user.getId();
-        if(userId==null){
-            return "null userId";
-        }
-        String orderInfoWithUser = orderInfo + "|userId:" + userId;
-        Map<String, String> vnpParams = new HashMap<>();
-        vnpParams.put("vnp_Version", version);
-        vnpParams.put("vnp_Command", command);
-        vnpParams.put("vnp_TmnCode", tmnCode);
-        vnpParams.put("vnp_Amount", String.valueOf(amount*100));
-        vnpParams.put("vnp_CurrCode", currency);
-        vnpParams.put("vnp_TxnRef", String.valueOf(System.currentTimeMillis()));
-        vnpParams.put("vnp_OrderInfo", orderInfoWithUser);
-        vnpParams.put("vnp_OrderType", orderType);
-        vnpParams.put("vnp_Locale", locale);
-        vnpParams.put("vnp_ReturnUrl", returnUrl);
-        vnpParams.put("vnp_CreateDate", new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()));
-        vnpParams.put("vnp_IpAddr", request.getRemoteAddr());
-        List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
-        Collections.sort(fieldNames);
-
-        StringBuilder hashData = new StringBuilder();
-        StringBuilder query = new StringBuilder();
-        for (String fieldName : fieldNames) {
-            String value = vnpParams.get(fieldName);
-            if (value != null && !value.isEmpty()) {
-                hashData.append(fieldName).append('=')
-                        .append(URLEncoder.encode(value, StandardCharsets.UTF_8))
-                        .append('&');
-                query.append(fieldName).append('=')
-                        .append(URLEncoder.encode(value, StandardCharsets.UTF_8))
-                        .append('&');
+        try {
+            // Validate config
+            if (tmnCode == null || tmnCode.isEmpty()) {
+                throw new RuntimeException("VNPay tmnCode is not configured");
             }
+            if (hashSecret == null || hashSecret.isEmpty()) {
+                throw new RuntimeException("VNPay hashSecret is not configured");
+            }
+            if (vnpayPayUrl == null || vnpayPayUrl.isEmpty()) {
+                throw new RuntimeException("VNPay pay URL is not configured");
+            }
+            
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+                throw new RuntimeException("User not authenticated");
+            }
+            
+            String name = authentication.getName();
+            if (name == null || name.isEmpty()) {
+                throw new RuntimeException("Cannot get username from authentication");
+            }
+            
+            UsersEntity user = userService.FindByUsername(name);
+            if (user == null) {
+                throw new RuntimeException("User not found: " + name);
+            }
+            
+            Long userId = user.getId();
+            if (userId == null) {
+                throw new RuntimeException("User ID is null");
+            }
+            
+            // Nếu orderInfo đã có userId, không thêm lại
+            String orderInfoWithUser = orderInfo;
+            if (!orderInfo.contains("|userId:")) {
+                orderInfoWithUser = orderInfo + "|userId:" + userId;
+            }
+            
+            // Validate amount (amount đã là xu từ frontend, không cần nhân 100 nữa)
+            if (amount <= 0) {
+                throw new RuntimeException("Amount must be greater than 0");
+            }
+            
+            Map<String, String> vnpParams = new HashMap<>();
+            vnpParams.put("vnp_Version", version);
+            vnpParams.put("vnp_Command", command);
+            vnpParams.put("vnp_TmnCode", tmnCode);
+            vnpParams.put("vnp_Amount", String.valueOf(amount));
+            vnpParams.put("vnp_CurrCode", currency);
+            vnpParams.put("vnp_TxnRef", String.valueOf(System.currentTimeMillis()));
+            vnpParams.put("vnp_OrderInfo", orderInfoWithUser);
+            vnpParams.put("vnp_OrderType", orderType);
+            vnpParams.put("vnp_Locale", locale);
+            vnpParams.put("vnp_ReturnUrl", returnUrl);
+            vnpParams.put("vnp_CreateDate", new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()));
+            String ipAddr = request.getRemoteAddr();
+            if (ipAddr == null || ipAddr.isEmpty()) {
+                ipAddr = "127.0.0.1";
+            }
+            vnpParams.put("vnp_IpAddr", ipAddr);
+            
+            List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
+            Collections.sort(fieldNames);
+
+            StringBuilder hashData = new StringBuilder();
+            StringBuilder query = new StringBuilder();
+            for (String fieldName : fieldNames) {
+                String value = vnpParams.get(fieldName);
+                if (value != null && !value.isEmpty()) {
+                    hashData.append(fieldName).append('=')
+                            .append(URLEncoder.encode(value, StandardCharsets.UTF_8))
+                            .append('&');
+                    query.append(fieldName).append('=')
+                            .append(URLEncoder.encode(value, StandardCharsets.UTF_8))
+                            .append('&');
+                }
+            }
+            if (hashData.length() > 0) {
+                hashData.deleteCharAt(hashData.length()-1);
+            }
+            if (query.length() > 0) {
+                query.deleteCharAt(query.length()-1);
+            }
+
+            String secureHash = hmacSHA512(hashSecret, hashData.toString());
+            query.append("&vnp_SecureHash=").append(secureHash);
+
+            return vnpayPayUrl + "?" + query.toString();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Error creating VNPay redirect URL: " + e.getMessage(), e);
         }
-        hashData.deleteCharAt(hashData.length()-1);
-        query.deleteCharAt(query.length()-1);
-
-        String secureHash = hmacSHA512(hashSecret, hashData.toString());
-        query.append("&vnp_SecureHash=").append(secureHash);
-
-        return vnpayPayUrl + "?" + query.toString();
     }
 
     public boolean validateReturn(Map<String,String> params) {

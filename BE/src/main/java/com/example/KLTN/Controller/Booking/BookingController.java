@@ -29,8 +29,18 @@ public class BookingController {
     }
 
     @GetMapping
-    public ResponseEntity<Apireponsi<List<BookingEntity>>> getBookingHistory() {
+    public ResponseEntity<?> getBookingHistory(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        // Nếu không có page/size, trả về tất cả (backward compatibility)
+        if (page == null && size == null) {
         return bookingService.getBookingHistoryByUser();
+        }
+        // Nếu có page/size, trả về phân trang
+        int validPage = page != null && page >= 0 ? page : 0;
+        int validSize = size != null && size > 0 ? size : 8;
+        return bookingService.getBookingHistoryByUserPaginated(validPage, validSize);
     }
     
     @GetMapping("/rooms/{roomId}")

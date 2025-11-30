@@ -14,19 +14,31 @@ const VerifyOtp = () => {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
+  const [otpError, setOtpError] = useState('')
   const { showSuccess } = useToast()
+
+  const validateOtp = (otpValue: string) => {
+    const otpRegex = /^[0-9]{6}$/
+    return otpRegex.test(otpValue)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setOtpError('')
     
     if (!email) {
       setError('Email không được tìm thấy. Vui lòng đăng ký lại.')
       return
     }
     
-    if (otp.length !== 6) {
-      setError('Mã OTP phải có 6 chữ số')
+    if (!otp.trim()) {
+      setOtpError('Mã OTP là bắt buộc')
+      return
+    }
+    
+    if (!validateOtp(otp)) {
+      setOtpError('Mã OTP phải có đúng 6 chữ số')
       return
     }
     
@@ -105,11 +117,18 @@ const VerifyOtp = () => {
                 onChange={(e) => {
                   const value = e.target.value.replace(/\D/g, '').slice(0, 6)
                   setOtp(value)
+                  if (otpError) {
+                    setOtpError('')
+                  }
                 }}
-                required
                 maxLength={6}
-                className="w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-none outline-none text-center text-2xl tracking-widest text-sm md:text-base"
+                className={`w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-center text-2xl tracking-widest text-sm md:text-base ${
+                  otpError ? 'border-red-500' : 'border-transparent'
+                }`}
               />
+              {otpError && (
+                <p className="mt-1 text-sm text-red-500">{otpError}</p>
+              )}
             </div>
 
             <button

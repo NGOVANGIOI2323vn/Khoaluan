@@ -17,12 +17,16 @@ import WithdrawForm, { type WithdrawFormData } from '../components/WithdrawForm'
 import RoomEditForm, { type RoomEditFormData } from '../components/RoomEditForm'
 
 const OwnerDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'hotels' | 'rooms' | 'transactions' | 'withdraws' | 'revenue'>('hotels')
+  const [activeTab, setActiveTab] = useState<'hotels' | 'rooms' | 'bookings' | 'transactions' | 'withdraws' | 'revenue'>('hotels')
   const [hotels, setHotels] = useState<Hotel[]>([])
+  const [filteredHotels, setFilteredHotels] = useState<Hotel[]>([])
+  const [hotelSearchQuery, setHotelSearchQuery] = useState('')
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null)
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
   const [roomBookings, setRoomBookings] = useState<Booking[]>([])
+  const [allBookings, setAllBookings] = useState<(Booking & { transactionStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' })[]>([])
+  const [loadingAllBookings, setLoadingAllBookings] = useState(false)
   const [transactions, setTransactions] = useState<BookingTransaction[]>([])
   const [withdraws, setWithdraws] = useState<WithdrawRequest[]>([])
   const [revenue, setRevenue] = useState<RevenueSummary | null>(null)
@@ -49,6 +53,22 @@ const OwnerDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const { showSuccess, showError } = useToast()
 
+  const filterHotels = useCallback((hotelsList: Hotel[], query: string) => {
+    if (!query.trim()) {
+      setFilteredHotels(hotelsList)
+      return
+    }
+    const lowerQuery = query.toLowerCase()
+    const filtered = hotelsList.filter(
+      (hotel) =>
+        hotel.name?.toLowerCase().includes(lowerQuery) ||
+        hotel.address?.toLowerCase().includes(lowerQuery) ||
+        hotel.city?.toLowerCase().includes(lowerQuery) ||
+        hotel.description?.toLowerCase().includes(lowerQuery)
+    )
+    setFilteredHotels(filtered)
+  }, [])
+
   const fetchHotels = async (resetSelection = false) => {
     try {
       setLoading(true)
@@ -56,6 +76,8 @@ const OwnerDashboard = () => {
       if (response.data) {
         const hotelsList = Array.isArray(response.data) ? response.data : []
         setHotels(hotelsList)
+        // Apply search filter
+        filterHotels(hotelsList, hotelSearchQuery)
         if (hotelsList.length === 0) {
           setSelectedHotel(null)
           setRooms([])
@@ -79,6 +101,28 @@ const OwnerDashboard = () => {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    filterHotels(hotels, hotelSearchQuery)
+  }, [hotelSearchQuery, hotels, filterHotels])
+
+  // Update selectedHotel when filteredHotels changes
+  useEffect(() => {
+    if (filteredHotels.length > 0) {
+      if (selectedHotel) {
+        const found = filteredHotels.find((h) => h.id === selectedHotel.id)
+        if (!found && filteredHotels[0]) {
+          setSelectedHotel(filteredHotels[0])
+        }
+      } else {
+        setSelectedHotel(filteredHotels[0])
+      }
+    } else if (filteredHotels.length === 0 && hotelSearchQuery.trim()) {
+      setSelectedHotel(null)
+      setRooms([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredHotels])
 
   useEffect(() => {
     fetchHotels()
@@ -166,8 +210,72 @@ const OwnerDashboard = () => {
     }
   }, [])
 
+  const fetchAllBookings = async () => {
+    try {
+      setLoadingAllBookings(true)
+      // Lấy bookings từ transactions vì transactions có bookingEntity
+      const response = await ownerService.getMyTransactions()
+      if (response.data) {
+        // Extract bookings from transactions
+        const bookings = response.data
+          .filter(t => t.bookingEntity)
+          .map(t => {
+            // Xử lý user - có thể là object hoặc number
+            let user: Booking['user'] = undefined
+            if (t.bookingEntity!.user) {
+              if (typeof t.bookingEntity!.user === 'object') {
+                user = {
+                  id: t.bookingEntity!.user.id,
+                  username: t.bookingEntity!.user.username,
+                  email: t.bookingEntity!.user.email || '',
+                  phone: t.bookingEntity!.user.phone || '',
+                }
+              } else {
+                // Nếu user chỉ là id, không có thông tin chi tiết
+                user = undefined
+              }
+            }
+
+            return {
+              id: t.bookingEntity!.id,
+              status: (t.bookingEntity!.status as string) || 'PENDING', // Trạng thái thanh toán của booking (PAID/PENDING/FAILED/REFUNDED)
+              transactionStatus: t.status, // Trạng thái duyệt của admin (APPROVED/PENDING/REJECTED)
+              bookingDate: t.bookingEntity!.bookingDate || t.bookingEntity!.checkInDate,
+              checkInDate: t.bookingEntity!.checkInDate,
+              checkOutDate: t.bookingEntity!.checkOutDate,
+              totalPrice: t.bookingEntity!.totalPrice,
+              user,
+              hotel: t.bookingEntity!.hotel ? {
+                id: t.bookingEntity!.hotel.id,
+                name: t.bookingEntity!.hotel.name,
+                address: t.bookingEntity!.hotel.address || '',
+              } : undefined,
+              rooms: t.bookingEntity!.rooms ? {
+                id: t.bookingEntity!.rooms.id,
+                Number: t.bookingEntity!.rooms.Number,
+                number: t.bookingEntity!.rooms.number || t.bookingEntity!.rooms.Number,
+                type: t.bookingEntity!.rooms.type,
+                price: t.bookingEntity!.rooms.price,
+                capacity: t.bookingEntity!.rooms.capacity,
+              } : undefined,
+            }
+          })
+        // Sort by booking date descending
+        bookings.sort((a, b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime())
+        setAllBookings(bookings)
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      showError(error.response?.data?.message || 'Không thể tải danh sách đặt phòng')
+    } finally {
+      setLoadingAllBookings(false)
+    }
+  }
+
   useEffect(() => {
-    if (activeTab === 'transactions') {
+    if (activeTab === 'bookings') {
+      fetchAllBookings()
+    } else if (activeTab === 'transactions') {
       fetchTransactions()
     } else if (activeTab === 'withdraws') {
       fetchWithdraws()
@@ -206,7 +314,12 @@ const OwnerDashboard = () => {
     try {
       const response = await ownerService.getMyWithdraws()
       if (response.data) {
-        setWithdraws(response.data)
+        // Handle both PageResponse and List
+        if ('content' in response.data) {
+          setWithdraws(response.data.content)
+        } else {
+          setWithdraws(response.data as WithdrawRequest[])
+        }
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
@@ -430,7 +543,7 @@ const OwnerDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -490,9 +603,51 @@ const OwnerDashboard = () => {
           <div className="xl:col-span-1 space-y-4">
             {/* Hotels List */}
             <div className="bg-white rounded-3xl shadow-xl p-6 border border-gray-100">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-900">
-                <span className="text-2xl">🏨</span> Khách sạn
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold flex items-center gap-2 text-gray-900">
+                  <span className="text-2xl">🏨</span> Khách sạn
+                </h2>
+                <span className="text-sm text-gray-500">
+                  {filteredHotels.length}/{hotels.length}
+                </span>
+              </div>
+              
+              {/* Search Bar */}
+              <div className="mb-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm khách sạn..."
+                    value={hotelSearchQuery}
+                    onChange={(e) => setHotelSearchQuery(e.target.value)}
+                    className="w-full px-4 py-2.5 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  {hotelSearchQuery && (
+                    <button
+                      onClick={() => setHotelSearchQuery('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {loading ? (
                 <div className="text-center py-4">
                   <p className="text-gray-600 text-sm">Đang tải...</p>
@@ -501,16 +656,20 @@ const OwnerDashboard = () => {
                 <div className="text-center py-4">
                   <p className="text-gray-600 text-sm">Chưa có khách sạn</p>
                 </div>
+              ) : filteredHotels.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-gray-600 text-sm">Không tìm thấy khách sạn nào</p>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3 md:gap-4 max-h-96 overflow-y-auto pr-2">
-                  {hotels.map((hotel, index) => (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
+                  {filteredHotels.map((hotel, index) => (
                     <div
                       key={hotel.id}
                       onClick={() => setSelectedHotel(hotel)}
-                      className={`cursor-pointer transition-all ${
+                      className={`cursor-pointer transition-all rounded-xl ${
                         selectedHotel?.id === hotel.id
                           ? 'ring-2 ring-blue-500 ring-offset-2'
-                          : ''
+                          : 'hover:shadow-md'
                       }`}
                     >
                       <HotelCard
@@ -521,7 +680,7 @@ const OwnerDashboard = () => {
                         onDelete={(id) => handleDeleteHotel(id)}
                         isDeleting={deletingHotelId === hotel.id}
                       />
-                        </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -613,39 +772,63 @@ const OwnerDashboard = () => {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-xl shadow-lg p-4 md:p-6 flex flex-col sm:flex-row flex-wrap gap-4 items-start sm:items-center"
+                className="bg-white rounded-xl shadow-lg p-4 md:p-6"
               >
-                {/* Hiển thị nhiều ảnh nếu có */}
+                {/* Hotel Images Section */}
                 {selectedHotel.images && selectedHotel.images.length > 0 ? (
-                  <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
-                    {selectedHotel.images.map((img) => (
-                      <img
-                        key={img.id}
-                        src={img.imageUrl}
-                        alt={selectedHotel.name}
-                        className="w-32 sm:w-48 h-24 sm:h-32 object-cover rounded-lg flex-shrink-0"
-                      />
-                    ))}
+                  <div className="mb-4">
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                      {selectedHotel.images.map((img) => (
+                        <img
+                          key={img.id}
+                          src={img.imageUrl}
+                          alt={selectedHotel.name}
+                          className="w-full max-w-[200px] h-40 object-cover rounded-lg flex-shrink-0"
+                        />
+                      ))}
+                    </div>
                   </div>
                 ) : selectedHotel.image ? (
-                  <img
-                    src={selectedHotel.image}
-                    alt={selectedHotel.name}
-                    className="w-full sm:w-48 h-32 object-cover rounded-lg"
-                  />
+                  <div className="mb-4">
+                    <img
+                      src={selectedHotel.image}
+                      alt={selectedHotel.name}
+                      className="w-full max-w-md h-64 object-cover rounded-lg"
+                    />
+                  </div>
                 ) : null}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg sm:text-xl font-bold break-words">{selectedHotel.name}</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">{selectedHotel.address}</p>
-                  <p className="text-xs sm:text-sm text-gray-600">☎ {selectedHotel.phone || 'Chưa cập nhật'}</p>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2 line-clamp-2 break-words">{selectedHotel.description || 'Chưa có mô tả'}</p>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditHotel(selectedHotel)}
-                    className="mt-3 text-xs sm:text-sm text-blue-600 hover:underline"
-                  >
-                    Chỉnh sửa thông tin khách sạn
-                  </button>
+                
+                {/* Hotel Info Section */}
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 break-words">
+                      {selectedHotel.name}
+                    </h3>
+                    <div className="space-y-1.5">
+                      <p className="text-sm sm:text-base text-gray-700 flex items-start gap-2">
+                        <span className="text-gray-500 mt-0.5">📍</span>
+                        <span className="break-words flex-1">{selectedHotel.address}</span>
+                      </p>
+                      <p className="text-sm sm:text-base text-gray-700 flex items-center gap-2">
+                        <span className="text-gray-500">☎</span>
+                        <span>{selectedHotel.phone || 'Chưa cập nhật'}</span>
+                      </p>
+                      {selectedHotel.description && (
+                        <p className="text-sm text-gray-600 mt-2 leading-relaxed break-words">
+                          {selectedHotel.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditHotel(selectedHotel)}
+                      className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition"
+                    >
+                      Chỉnh sửa thông tin khách sạn
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -909,10 +1092,11 @@ const OwnerDashboard = () => {
           </div>
         </div>
 
-        {/* Tabs for Transactions, Withdraws & Revenue */}
+        {/* Tabs for Bookings, Transactions, Withdraws & Revenue */}
         <div className="mt-6 bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="flex border-b overflow-x-auto scrollbar-hide">
             {[
+              { id: 'bookings' as const, label: 'Đặt phòng', icon: '📋' },
               { id: 'transactions' as const, label: 'Giao dịch', icon: '💳' },
               { id: 'withdraws' as const, label: 'Rút tiền', icon: '💸' },
               { id: 'revenue' as const, label: 'Doanh thu', icon: '💰' },
@@ -933,6 +1117,128 @@ const OwnerDashboard = () => {
           </div>
 
           <div className="p-4 md:p-6">
+            {activeTab === 'bookings' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-4"
+              >
+                <h2 className="text-xl md:text-2xl font-bold mb-4">Danh sách đặt phòng</h2>
+                {loadingAllBookings ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600">Đang tải danh sách đặt phòng...</p>
+                  </div>
+                ) : allBookings.length === 0 ? (
+                  <p className="text-center text-gray-600 py-8">Chưa có đặt phòng nào</p>
+                ) : (
+                  <div className="overflow-x-auto -mx-4 sm:mx-0">
+                    <table className="w-full min-w-[1000px]">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Khách hàng</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Khách sạn</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Phòng</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Ngày nhận</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Ngày trả</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Tổng tiền</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Thanh toán</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Duyệt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allBookings.map((booking, index) => (
+                          <motion.tr
+                            key={booking.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="border-b hover:bg-gray-50"
+                          >
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
+                              <div>
+                                <div className="font-semibold break-words">{booking.user?.username || 'N/A'}</div>
+                                {booking.user?.email && (
+                                  <div className="text-gray-500 text-xs break-words">{booking.user.email}</div>
+                                )}
+                                {booking.user?.phone && (
+                                  <div className="text-gray-500 text-xs break-words">📞 {booking.user.phone}</div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">
+                              <div>
+                                <div className="font-semibold">{booking.hotel?.name || 'N/A'}</div>
+                                {booking.hotel?.address && (
+                                  <div className="text-gray-500 text-xs">{booking.hotel.address}</div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
+                              {booking.rooms ? (
+                                <div>
+                                  <div className="font-semibold">
+                                    Phòng {booking.rooms.Number || booking.rooms.number || 'N/A'}
+                                  </div>
+                                  <div className="text-gray-500 text-xs">
+                                    {booking.rooms.type} - {booking.rooms.capacity} người
+                                  </div>
+                                </div>
+                              ) : (
+                                'N/A'
+                              )}
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm whitespace-nowrap">
+                              {new Date(booking.checkInDate).toLocaleDateString('vi-VN')}
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm whitespace-nowrap">
+                              {new Date(booking.checkOutDate).toLocaleDateString('vi-VN')}
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap">
+                              {Number(booking.totalPrice).toLocaleString('vi-VN')} VND
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(booking.status)}`}
+                              >
+                                {booking.status === 'PAID'
+                                  ? '✅ Đã thanh toán'
+                                  : booking.status === 'PENDING'
+                                  ? '⏳ Chờ thanh toán'
+                                  : booking.status === 'FAILED'
+                                  ? '❌ Thất bại'
+                                  : booking.status === 'REFUNDED'
+                                  ? '↩️ Đã hoàn tiền'
+                                  : '❓ Không xác định'}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
+                              {booking.transactionStatus && (
+                                <span
+                                  className={`px-2 py-1 rounded text-xs font-semibold ${
+                                    booking.transactionStatus === 'APPROVED'
+                                      ? 'bg-green-100 text-green-700 border-green-300'
+                                      : booking.transactionStatus === 'REJECTED'
+                                      ? 'bg-red-100 text-red-700 border-red-300'
+                                      : 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                                  }`}
+                                >
+                                  {booking.transactionStatus === 'APPROVED'
+                                    ? '✅ Đã duyệt'
+                                    : booking.transactionStatus === 'REJECTED'
+                                    ? '❌ Từ chối'
+                                    : '⏳ Chờ duyệt'}
+                                </span>
+                              )}
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {activeTab === 'transactions' && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -971,7 +1277,13 @@ const OwnerDashboard = () => {
                               {Number(transaction.amount).toLocaleString('vi-VN')} VND
                             </td>
                             <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-green-600 whitespace-nowrap">
-                              {Number(transaction.User_mount).toLocaleString('vi-VN')} VND
+                              {(() => {
+                                // Handle User_mount (PascalCase)
+                                const userMount = transaction.User_mount
+                                if (userMount == null || userMount === undefined) return '0'
+                                const numValue = typeof userMount === 'string' ? parseFloat(userMount) : Number(userMount)
+                                return isNaN(numValue) ? '0' : numValue.toLocaleString('vi-VN')
+                              })()} VND
                             </td>
                             <td className="px-2 sm:px-4 py-2 sm:py-3">
                               <span

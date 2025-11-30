@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
 * {
   margin: 0;
   padding: 0;
@@ -14,4 +15,45 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+    @apply bg-gray-50 text-gray-900;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold;
+  }
+
+  button {
+    @apply transition-all duration-200;
+  }
+
+  input, textarea, select {
+    @apply transition-all duration-200;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-xl border border-gray-100 p-6;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition;
+  }
+
+  .container-wide {
+    @apply max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }

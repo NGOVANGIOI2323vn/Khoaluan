@@ -60,12 +60,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         // ✅ Sinh token và lưu tạm
         String token = jwtUtil.generateToken(user.getUsername());
         latestJwtToken = token;
-        
-        System.out.println("=== CustomOAuth2UserService ===");
-        System.out.println("User email: " + email);
-        System.out.println("User username: " + user.getUsername());
-        System.out.println("Token generated: " + (token != null ? "YES" : "NO"));
-        System.out.println("Token saved to static variable: " + (latestJwtToken != null ? "YES" : "NO"));
 
         return oAuth2User;
     }

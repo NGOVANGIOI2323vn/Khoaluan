@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Header from '../components/Header'
+import RoomAvailability from '../components/RoomAvailability'
 import { hotelService } from '../services/hotelService'
 import { useToast } from '../hooks/useToast'
 import type { Hotel, Room } from '../services/hotelService'
@@ -143,7 +144,7 @@ const Booking = () => {
     <div className="min-h-screen bg-gray-50">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-4 md:py-8">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -331,6 +332,14 @@ const Booking = () => {
                                 Giảm {room.discountPercent}%
                               </span>
                             )}
+                          </div>
+                          {/* Room Availability */}
+                          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                            <RoomAvailability 
+                              roomId={room.id} 
+                              checkIn={formData.checkIn}
+                              checkOut={formData.checkOut}
+                            />
                           </div>
                         </div>
                         <div className="flex items-center">

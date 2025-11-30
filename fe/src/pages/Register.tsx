@@ -18,14 +18,77 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<{
+    username?: string
+    email?: string
+    phone?: string
+    password?: string
+    confirmPassword?: string
+  }>({})
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validatePhone = (phone: string) => {
+    const phoneRegex = /^[0-9+\-\s()]{9,15}$/
+    return phoneRegex.test(phone.replace(/\s/g, ''))
+  }
+
+  const validateForm = () => {
+    const errors: {
+      username?: string
+      email?: string
+      phone?: string
+      password?: string
+      confirmPassword?: string
+    } = {}
+    
+    if (!formData.username.trim()) {
+      errors.username = 'Tên đăng nhập là bắt buộc'
+    } else if (formData.username.trim().length < 3) {
+      errors.username = 'Tên đăng nhập phải có ít nhất 3 ký tự'
+    } else if (formData.username.trim().length > 50) {
+      errors.username = 'Tên đăng nhập không được quá 50 ký tự'
+    }
+    
+    if (!formData.email.trim()) {
+      errors.email = 'Email là bắt buộc'
+    } else if (!validateEmail(formData.email)) {
+      errors.email = 'Email không hợp lệ'
+    }
+    
+    if (!formData.Phone.trim()) {
+      errors.phone = 'Số điện thoại là bắt buộc'
+    } else if (!validatePhone(formData.Phone)) {
+      errors.phone = 'Số điện thoại không hợp lệ (9-15 số)'
+    }
+    
+    if (!formData.password) {
+      errors.password = 'Mật khẩu là bắt buộc'
+    } else if (formData.password.length < 6) {
+      errors.password = 'Mật khẩu phải có ít nhất 6 ký tự'
+    }
+    
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Xác nhận mật khẩu là bắt buộc'
+    } else if (formData.password !== confirmPassword) {
+      errors.confirmPassword = 'Mật khẩu xác nhận không khớp'
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (formData.password !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp')
+    
+    if (!validateForm()) {
       return
     }
+    
     setLoading(true)
 
     try {
@@ -79,10 +142,19 @@ const Register = () => {
                 type="text"
                 placeholder="Nhập tên đăng nhập"
                 value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                required
-                className="w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-none outline-none text-sm md:text-base"
+                onChange={(e) => {
+                  setFormData({ ...formData, username: e.target.value })
+                  if (validationErrors.username) {
+                    setValidationErrors({ ...validationErrors, username: undefined })
+                  }
+                }}
+                className={`w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-sm md:text-base ${
+                  validationErrors.username ? 'border-red-500' : 'border-transparent'
+                }`}
               />
+              {validationErrors.username && (
+                <p className="mt-1 text-sm text-red-500">{validationErrors.username}</p>
+              )}
             </div>
 
             <div>
@@ -93,10 +165,19 @@ const Register = () => {
                 type="email"
                 placeholder="Nhập Email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-                className="w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-none outline-none text-sm md:text-base"
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value })
+                  if (validationErrors.email) {
+                    setValidationErrors({ ...validationErrors, email: undefined })
+                  }
+                }}
+                className={`w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-sm md:text-base ${
+                  validationErrors.email ? 'border-red-500' : 'border-transparent'
+                }`}
               />
+              {validationErrors.email && (
+                <p className="mt-1 text-sm text-red-500">{validationErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -104,13 +185,22 @@ const Register = () => {
                 Số điện thoại
               </label>
               <input
-                type="text"
+                type="tel"
                 placeholder="Nhập số điện thoại"
                 value={formData.Phone}
-                onChange={(e) => setFormData({ ...formData, Phone: e.target.value })}
-                required
-                className="w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-none outline-none text-sm md:text-base"
+                onChange={(e) => {
+                  setFormData({ ...formData, Phone: e.target.value })
+                  if (validationErrors.phone) {
+                    setValidationErrors({ ...validationErrors, phone: undefined })
+                  }
+                }}
+                className={`w-full px-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-sm md:text-base ${
+                  validationErrors.phone ? 'border-red-500' : 'border-transparent'
+                }`}
               />
+              {validationErrors.phone && (
+                <p className="mt-1 text-sm text-red-500">{validationErrors.phone}</p>
+              )}
             </div>
 
             <div>
@@ -122,10 +212,18 @@ const Register = () => {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Nhập Mật Khẩu"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  minLength={6}
-                  className="w-full px-4 pr-12 py-2.5 md:py-3 bg-gray-200 rounded-lg border-none outline-none text-sm md:text-base"
+                  onChange={(e) => {
+                    setFormData({ ...formData, password: e.target.value })
+                    if (validationErrors.password) {
+                      setValidationErrors({ ...validationErrors, password: undefined })
+                    }
+                    if (confirmPassword && validationErrors.confirmPassword) {
+                      setValidationErrors({ ...validationErrors, confirmPassword: undefined })
+                    }
+                  }}
+                  className={`w-full px-4 pr-12 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-sm md:text-base ${
+                    validationErrors.password ? 'border-red-500' : 'border-transparent'
+                  }`}
                 />
                 <button
                   type="button"
@@ -135,6 +233,9 @@ const Register = () => {
                   {showPassword ? '🙈' : '👁️'}
                 </button>
               </div>
+              {validationErrors.password && (
+                <p className="mt-1 text-sm text-red-500">{validationErrors.password}</p>
+              )}
             </div>
 
             <div>
@@ -146,10 +247,15 @@ const Register = () => {
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Nhập lại mật khẩu"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className="w-full px-4 pr-12 py-2.5 md:py-3 bg-gray-200 rounded-lg border-none outline-none text-sm md:text-base"
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value)
+                    if (validationErrors.confirmPassword) {
+                      setValidationErrors({ ...validationErrors, confirmPassword: undefined })
+                    }
+                  }}
+                  className={`w-full px-4 pr-12 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-sm md:text-base ${
+                    validationErrors.confirmPassword ? 'border-red-500' : 'border-transparent'
+                  }`}
                 />
                 <button
                   type="button"
@@ -159,6 +265,9 @@ const Register = () => {
                   {showConfirmPassword ? '🙈' : '👁️'}
                 </button>
               </div>
+              {validationErrors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-500">{validationErrors.confirmPassword}</p>
+              )}
             </div>
 
             <div>

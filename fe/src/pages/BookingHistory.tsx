@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Header from '../components/Header'
-import { bookingService } from '../services/bookingService'
+import { bookingService, type PageResponse } from '../services/bookingService'
 import { useToast } from '../hooks/useToast'
 import type { Booking } from '../services/bookingService'
 
@@ -9,31 +9,67 @@ const BookingHistory = () => {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [currentPage, setCurrentPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrevious, setHasPrevious] = useState(false)
   const { showSuccess, showError } = useToast()
 
-  useEffect(() => {
-    const fetchBookings = async () => {
-      try {
-        setLoading(true)
-        const response = await bookingService.getBookingHistory()
-        if (response.data) {
-          setBookings(response.data)
+  const fetchBookings = async (page: number = 0) => {
+    try {
+      setLoading(true)
+      const response = await bookingService.getBookingHistory(page, 8)
+      if (response.data) {
+        // Check if response is paginated
+        if ('content' in response.data) {
+          const pageData = response.data as PageResponse<Booking>
+          setBookings(pageData.content)
+          setTotalPages(pageData.totalPages)
+          setCurrentPage(pageData.currentPage)
+          setHasNext(pageData.hasNext)
+          setHasPrevious(pageData.hasPrevious)
+        } else {
+          // Fallback for non-paginated response - tự tính toán phân trang ở Frontend
+          const bookingsList = response.data as Booking[]
+          
+          // Tính toán phân trang thủ công
+          const itemsPerPage = 8
+          const calculatedTotalPages = Math.ceil(bookingsList.length / itemsPerPage)
+          
+          // Slice bookings theo page
+          const startIndex = page * itemsPerPage
+          const endIndex = startIndex + itemsPerPage
+          const paginatedBookings = bookingsList.slice(startIndex, endIndex)
+          
+          setBookings(paginatedBookings)
+          setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1)
+          setCurrentPage(page)
+          setHasNext(page < calculatedTotalPages - 1)
+          setHasPrevious(page > 0)
         }
-      } catch (err: unknown) {
-        const error = err as { response?: { data?: { message?: string } } }
-        setError(error.response?.data?.message || 'Không thể tải lịch sử đặt phòng')
-      } finally {
-        setLoading(false)
       }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      setError(error.response?.data?.message || 'Không thể tải lịch sử đặt phòng')
+    } finally {
+      setLoading(false)
     }
-    fetchBookings()
+  }
+
+  useEffect(() => {
+    fetchBookings(0)
   }, [])
+
+  const handlePageChange = async (newPage: number) => {
+    await fetchBookings(newPage)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header showBookingForm={true} />
 
-      <div className="max-w-7xl mx-auto px-4 py-4 md:py-8">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
         <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-6 md:mb-8">Lịch sử đặt phòng</h1>
 
         {loading && (
@@ -137,6 +173,64 @@ const BookingHistory = () => {
                 )}
               </motion.div>
             ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && !error && totalPages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-10 mb-4">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={!hasPrevious}
+              className={`px-4 py-2 rounded-xl transition font-medium ${
+                hasPrevious
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              ← Trước
+            </button>
+            
+            <div className="flex gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number
+                if (totalPages <= 5) {
+                  pageNum = i
+                } else if (currentPage < 3) {
+                  pageNum = i
+                } else if (currentPage > totalPages - 4) {
+                  pageNum = totalPages - 5 + i
+                } else {
+                  pageNum = currentPage - 2 + i
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`px-4 py-2 rounded-xl transition font-medium ${
+                      currentPage === pageNum
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    {pageNum + 1}
+                  </button>
+                )
+              })}
+            </div>
+            
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={!hasNext}
+              className={`px-4 py-2 rounded-xl transition font-medium ${
+                hasNext
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              Sau →
+            </button>
           </div>
         )}
       </div>

@@ -56,17 +56,8 @@ public class HotelRequestController {
                 ));
             }
             
-            System.out.println("=== DEBUG: Received hotel JSON ===");
-            System.out.println("hotelJson length: " + hotelJson.length());
-            System.out.println("hotelJson preview: " + (hotelJson.length() > 200 ? hotelJson.substring(0, 200) : hotelJson));
-            
             // Parse JSON string thành hotelDto
             hotelDto dto = objectMapper.readValue(hotelJson, hotelDto.class);
-            
-            System.out.println("=== DEBUG: Parsed DTO ===");
-            System.out.println("Hotel name: " + dto.getName());
-            System.out.println("Image URLs count: " + (dto.getImageUrls() != null ? dto.getImageUrls().size() : 0));
-            System.out.println("Rooms count: " + (dto.getRooms() != null ? dto.getRooms().size() : 0));
             
             // Lấy các file images (nếu có)
             MultipartFile hotelImage = multipartRequest.getFile("hotelImage");

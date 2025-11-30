@@ -33,10 +33,6 @@ public class CustomOidcUserService extends OidcUserService {
         String email = (String) attributes.get("email");
         String name = (String) attributes.get("name");
         
-        System.out.println("=== CustomOidcUserService ===");
-        System.out.println("Email: " + email);
-        System.out.println("Name: " + name);
-        
         if (email == null || email.isBlank()) {
             throw new RuntimeException("Không thể lấy email từ tài khoản Google. Vui lòng bật quyền truy cập email.");
         }
@@ -56,7 +52,6 @@ public class CustomOidcUserService extends OidcUserService {
                     .role(roleUser)
                     .build();
             userRepository.save(user);
-            System.out.println("Created new user: " + user.getUsername());
         }
         
         if (user.getWallet() == null) {
@@ -69,10 +64,6 @@ public class CustomOidcUserService extends OidcUserService {
         // ✅ Sinh token và lưu tạm
         String token = jwtUtil.generateToken(user.getUsername());
         latestJwtToken = token;
-        
-        System.out.println("User username: " + user.getUsername());
-        System.out.println("Token generated: " + (token != null ? "YES" : "NO"));
-        System.out.println("Token saved to static variable: " + (latestJwtToken != null ? "YES" : "NO"));
 
         return oidcUser;
     }

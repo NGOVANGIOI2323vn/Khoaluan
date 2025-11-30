@@ -29,6 +29,7 @@ public class UsersEntity {
     private String email;
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean verified = false;
 
     @Column(nullable = false)

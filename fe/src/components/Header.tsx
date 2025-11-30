@@ -1,125 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { authService } from '../services/authService'
 import { ownerService } from '../services/ownerService'
-import { Wallet } from 'lucide-react'
+import { Wallet, User, LogOut, Settings } from 'lucide-react'
+import BookingFilterForm from './BookingFilterForm'
+import Logo from './Logo'
 
 interface HeaderProps {
   showBookingForm?: boolean
 }
 
-const BookingFilterForm = () => {
-  const navigate = useNavigate()
-  const [city, setCity] = useState('')
-  const [checkIn, setCheckIn] = useState('')
-  const [checkOut, setCheckOut] = useState('')
-  const [numberOfRooms, setNumberOfRooms] = useState(1)
-  const [showCityDropdown, setShowCityDropdown] = useState(false)
-  
-  const cities = ['Tất cả', 'Đà Nẵng', 'Hà Nội', 'Hồ Chí Minh', 'Nha Trang', 'Hội An', 'Huế', 'Phú Quốc']
-  
-  const handleSearch = () => {
-    const params = new URLSearchParams()
-    if (city && city !== 'Tất cả') params.set('city', city)
-    if (checkIn) params.set('checkIn', checkIn)
-    if (checkOut) params.set('checkOut', checkOut)
-    if (numberOfRooms > 0) params.set('numberOfRooms', numberOfRooms.toString())
-    
-    navigate(`/hotels?${params.toString()}`)
-  }
-  
-  // Format date for input (YYYY-MM-DD)
-  const today = new Date().toISOString().split('T')[0]
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4"
-    >
-      <div className="relative">
-        <div 
-          className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 rounded border border-gray-300 cursor-pointer"
-          onClick={() => setShowCityDropdown(!showCityDropdown)}
-        >
-          <span className="text-sm md:text-base">📍</span>
-          <input
-            type="text"
-            placeholder="Thành phố (Tất cả)"
-            value={city || ''}
-            readOnly
-            className="flex-1 border-none outline-none text-sm md:text-base cursor-pointer"
-          />
-          <span className="text-gray-400 text-xs">▼</span>
-        </div>
-        {showCityDropdown && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 max-h-60 overflow-y-auto">
-            {cities.map((c) => (
-              <button
-                key={c}
-                onClick={() => {
-                  setCity(c)
-                  setShowCityDropdown(false)
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-blue-50 text-sm md:text-base"
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 rounded border border-gray-300">
-        <span className="text-sm md:text-base">📅</span>
-        <input
-          type="date"
-          placeholder="Ngày nhận phòng"
-          value={checkIn}
-          min={today}
-          onChange={(e) => setCheckIn(e.target.value)}
-          className="flex-1 border-none outline-none text-sm md:text-base"
-        />
-      </div>
-      <div className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 rounded border border-gray-300">
-        <span className="text-sm md:text-base">📅</span>
-        <input
-          type="date"
-          placeholder="Ngày trả phòng"
-          value={checkOut}
-          min={checkIn || today}
-          onChange={(e) => setCheckOut(e.target.value)}
-          className="flex-1 border-none outline-none text-sm md:text-base"
-        />
-      </div>
-      <div className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 rounded border border-gray-300">
-        <span className="text-sm md:text-base">🛏️</span>
-        <input
-          type="number"
-          placeholder="Số phòng"
-          value={numberOfRooms}
-          min={1}
-          onChange={(e) => setNumberOfRooms(parseInt(e.target.value) || 1)}
-          className="flex-1 border-none outline-none text-sm md:text-base"
-        />
-      </div>
-      <button
-        onClick={handleSearch}
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm md:text-base font-semibold"
-      >
-        Tìm kiếm
-      </button>
-    </motion.div>
-  )
-}
-
 const Header = ({ showBookingForm = false }: HeaderProps) => {
   const location = useLocation()
+  const navigate = useNavigate()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [username, setUsername] = useState<string | null>(null)
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  const [showUserDropdown, setShowUserDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const checkAuth = () => {
@@ -152,10 +53,10 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
     }
   }, [location.pathname]) // Re-check when route changes
 
-  // Fetch wallet balance for owner/admin
+  // Fetch wallet balance for owner/admin/user
   useEffect(() => {
     const fetchWalletBalance = async () => {
-      if (isAuthenticated && (userRole === 'OWNER' || userRole === 'ADMIN')) {
+      if (isAuthenticated && (userRole === 'OWNER' || userRole === 'ADMIN' || userRole === 'USER')) {
         try {
           const response = await ownerService.getWalletBalance()
           if (response.data) {
@@ -177,21 +78,39 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
     return () => clearInterval(interval)
   }, [isAuthenticated, userRole])
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false)
+      }
+    }
+
+    if (showUserDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showUserDropdown])
+
   const handleLogout = () => {
     authService.logout()
     setIsAuthenticated(false)
     setUserRole(null)
     setUsername(null)
+    setShowUserDropdown(false)
     // Redirect về home sau khi logout
-    window.location.href = '/'
+    navigate('/')
   }
   
   return (
-    <header className="bg-gray-100 py-2 sm:py-3 md:py-4">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4">
+    <header className="bg-white border-b border-gray-200 shadow-sm py-3 sm:py-4">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4 gap-2">
-          <Link to="/" className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600 whitespace-nowrap">
-            Hotels booking
+          <Link to="/" className="hover:opacity-90 transition-opacity">
+            <Logo size="md" />
           </Link>
           <div className="flex items-center gap-1 sm:gap-2 md:gap-6">
             {/* Desktop Navigation */}
@@ -282,18 +201,10 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
               {isMobileMenuOpen ? '✕' : '☰'}
             </button>
 
-            <button className="hidden sm:block p-2 hover:bg-gray-200 rounded transition">
-              🌐
-            </button>
-            {showBookingForm && (
-              <button className="hidden sm:block p-2 hover:bg-gray-200 rounded transition">
-                ❤️
-              </button>
-            )}
             {isAuthenticated && username ? (
               <div className="flex items-center gap-2 md:gap-3">
-                {/* Wallet Balance for Owner/Admin */}
-                {(userRole === 'OWNER' || userRole === 'ADMIN') && walletBalance !== null && (
+                {/* Wallet Balance for Owner/Admin/User */}
+                {(userRole === 'OWNER' || userRole === 'ADMIN' || userRole === 'USER') && walletBalance !== null && (
                   <div className="hidden md:block relative group">
                     <div className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1.5 rounded-lg shadow-md cursor-pointer transition-all hover:shadow-lg hover:scale-105">
                       <span className="text-lg">💰</span>
@@ -306,41 +217,131 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
                     </div>
                     {/* Hover Menu */}
                     <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                      <Link
-                        to={userRole === 'OWNER' ? '/owner?tab=withdraws' : '/admin?tab=withdraws'}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg transition"
-                        onClick={() => {
-                          // Dispatch event để OwnerDashboard chuyển tab
-                          window.dispatchEvent(new CustomEvent('switchToWithdrawTab'))
-                        }}
-                      >
-                        <Wallet className="w-5 h-5 text-blue-600" />
-                        <span className="text-sm font-semibold text-gray-700">Rút tiền</span>
-                      </Link>
+                      {userRole === 'USER' ? (
+                        <Link
+                          to="/wallet"
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg transition"
+                        >
+                          <Wallet className="w-5 h-5 text-blue-600" />
+                          <span className="text-sm font-semibold text-gray-700">Quản lý ví</span>
+                        </Link>
+                      ) : (
+                        <Link
+                          to={userRole === 'OWNER' ? '/owner?tab=withdraws' : '/admin?tab=withdraws'}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg transition"
+                          onClick={() => {
+                            // Dispatch event để OwnerDashboard chuyển tab
+                            window.dispatchEvent(new CustomEvent('switchToWithdrawTab'))
+                          }}
+                        >
+                          <Wallet className="w-5 h-5 text-blue-600" />
+                          <span className="text-sm font-semibold text-gray-700">Rút tiền</span>
+                        </Link>
+                      )}
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  <span className="text-lg md:text-xl">👤</span>
-                  <div className="hidden sm:flex flex-col">
-                    <span className="text-xs text-gray-500">
-                      {userRole === 'ADMIN' ? 'Admin' : userRole === 'OWNER' ? 'Chủ khách sạn' : 'Khách hàng'}
-                    </span>
-                    <span className="text-sm md:text-base text-gray-700 font-semibold">
+                {/* User Dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-200 transition"
+                  >
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm md:text-base">
+                      {username.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="hidden sm:flex flex-col text-left">
+                      <span className="text-xs text-gray-500">
+                        {userRole === 'ADMIN' ? 'Admin' : userRole === 'OWNER' ? 'Chủ khách sạn' : 'Khách hàng'}
+                      </span>
+                      <span className="text-sm md:text-base text-gray-700 font-semibold">
+                        {username}
+                      </span>
+                    </div>
+                    <span className="sm:hidden text-sm text-gray-700 font-semibold">
                       {username}
                     </span>
-                  </div>
-                  <span className="sm:hidden text-sm text-gray-700 font-semibold">
-                    {username}
-                  </span>
+                    <svg
+                      className={`w-4 h-4 text-gray-600 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  <AnimatePresence>
+                    {showUserDropdown && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50"
+                      >
+                        <div className="py-2">
+                          <Link
+                            to="/profile"
+                            onClick={() => setShowUserDropdown(false)}
+                            className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition"
+                          >
+                            <User className="w-5 h-5 text-gray-600" />
+                            <span className="text-sm font-semibold text-gray-700">Thông tin cá nhân</span>
+                          </Link>
+                          {userRole === 'OWNER' && (
+                            <Link
+                              to="/owner"
+                              onClick={() => setShowUserDropdown(false)}
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition"
+                            >
+                              <Settings className="w-5 h-5 text-gray-600" />
+                              <span className="text-sm font-semibold text-gray-700">Quản lý khách sạn</span>
+                            </Link>
+                          )}
+                          {userRole === 'ADMIN' && (
+                            <Link
+                              to="/admin"
+                              onClick={() => setShowUserDropdown(false)}
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition"
+                            >
+                              <Settings className="w-5 h-5 text-gray-600" />
+                              <span className="text-sm font-semibold text-gray-700">Admin Dashboard</span>
+                            </Link>
+                          )}
+                          {userRole === 'USER' && (
+                            <>
+                              <Link
+                                to="/wallet"
+                                onClick={() => setShowUserDropdown(false)}
+                                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition"
+                              >
+                                <Wallet className="w-5 h-5 text-gray-600" />
+                                <span className="text-sm font-semibold text-gray-700">Ví điện tử</span>
+                              </Link>
+                              <Link
+                                to="/booking-history"
+                                onClick={() => setShowUserDropdown(false)}
+                                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition"
+                              >
+                                <Settings className="w-5 h-5 text-gray-600" />
+                                <span className="text-sm font-semibold text-gray-700">Lịch sử đặt phòng</span>
+                              </Link>
+                            </>
+                          )}
+                          <div className="border-t border-gray-200 my-1"></div>
+                          <button
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 transition text-left"
+                          >
+                            <LogOut className="w-5 h-5 text-red-600" />
+                            <span className="text-sm font-semibold text-red-600">Đăng xuất</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="bg-red-600 text-white px-3 md:px-6 py-1.5 md:py-2 rounded text-sm md:text-base hover:bg-red-700 transition whitespace-nowrap flex items-center gap-1"
-                >
-                  <span>🚪</span>
-                  <span className="hidden sm:inline">Đăng xuất</span>
-                </button>
               </div>
             ) : (
               <Link
@@ -461,7 +462,7 @@ const Header = ({ showBookingForm = false }: HeaderProps) => {
         </AnimatePresence>
 
         {showBookingForm && (
-          <BookingFilterForm />
+          <BookingFilterForm variant="default" />
         )}
       </div>
     </header>

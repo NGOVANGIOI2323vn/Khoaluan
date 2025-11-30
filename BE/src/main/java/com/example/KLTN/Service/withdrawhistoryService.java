@@ -9,8 +9,12 @@ import com.example.KLTN.Entity.withDrawHistoryEntity;
 import com.example.KLTN.Repository.withdrawhistoryRepository;
 import com.example.KLTN.Service.Impl.withdrawhistoryServiceImpl;
 import com.example.KLTN.dto.Apireponsi;
+import com.example.KLTN.dto.PageResponse;
 import com.example.KLTN.dto.withDrawDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -171,6 +175,47 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             
             List<withDrawHistoryEntity> withdraws = withdrawRepository.findByWalletsEntityId(wallet.getId());
             return httpResponseUtil.ok("Get my withdraws success", withdraws);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error getting my withdraws", e);
+        }
+    }
+    
+    public ResponseEntity<Apireponsi<PageResponse<withDrawHistoryEntity>>> getMyWithdrawsPaginated(int page, int size) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+                return httpResponseUtil.badRequest("User not authenticated");
+            }
+            
+            String username = auth.getName();
+            UsersEntity user = userService.FindByUsername(username);
+            if (user == null) {
+                return httpResponseUtil.notFound("User not found");
+            }
+            
+            WalletsEntity wallet = wallettService.GetWallet(user);
+            if (wallet == null) {
+                return httpResponseUtil.notFound("Wallet not found");
+            }
+            
+            // Validate và set defaults
+            int validPage = page >= 0 ? page : 0;
+            int validSize = size > 0 ? size : 8;
+            
+            Pageable pageable = PageRequest.of(validPage, validSize);
+            Page<withDrawHistoryEntity> withdrawPage = withdrawRepository.findByWalletsEntityIdOrderByIdDesc(wallet.getId(), pageable);
+            
+            PageResponse<withDrawHistoryEntity> response = new PageResponse<>(
+                withdrawPage.getContent(),
+                withdrawPage.getTotalPages(),
+                withdrawPage.getTotalElements(),
+                withdrawPage.getNumber(),
+                withdrawPage.getSize(),
+                withdrawPage.hasNext(),
+                withdrawPage.hasPrevious()
+            );
+            
+            return httpResponseUtil.ok("Get my withdraws success", response);
         } catch (Exception e) {
             return httpResponseUtil.error("Error getting my withdraws", e);
         }

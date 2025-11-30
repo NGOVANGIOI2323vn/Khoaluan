@@ -7,9 +7,13 @@ import com.example.KLTN.Repository.PaymentResultRepository;
 import com.example.KLTN.Service.Impl.BookingServiceImpl;
 import com.example.KLTN.dto.Apireponsi;
 import com.example.KLTN.dto.BookingCreateDTO;
+import com.example.KLTN.dto.PageResponse;
 import com.google.zxing.WriterException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -222,8 +226,41 @@ public class BookingService implements BookingServiceImpl {
                 return httpResponseUtil.notFound("User not found");
             }
             List<BookingEntity> bookings = bookingRepository.findByUserOrderByBookingDateDesc(user);
-
             return httpResponseUtil.ok("Get booking history success", bookings);
+        } catch (Exception e) {
+            System.err.println("Error getting booking history: " + e.getMessage());
+            e.printStackTrace();
+            return httpResponseUtil.error("Get booking history error", e);
+        }
+    }
+    
+    public ResponseEntity<Apireponsi<PageResponse<BookingEntity>>> getBookingHistoryByUserPaginated(int page, int size) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String username = authentication.getName();
+            UsersEntity user = userService.FindByUsername(username);
+            if (user == null) {
+                return httpResponseUtil.notFound("User not found");
+            }
+            
+            // Validate và set defaults
+            int validPage = page >= 0 ? page : 0;
+            int validSize = size > 0 ? size : 8;
+            
+            Pageable pageable = PageRequest.of(validPage, validSize);
+            Page<BookingEntity> bookingPage = bookingRepository.findByUserOrderByBookingDateDesc(user, pageable);
+            
+            PageResponse<BookingEntity> response = new PageResponse<>(
+                bookingPage.getContent(),
+                bookingPage.getTotalPages(),
+                bookingPage.getTotalElements(),
+                bookingPage.getNumber(),
+                bookingPage.getSize(),
+                bookingPage.hasNext(),
+                bookingPage.hasPrevious()
+            );
+            
+            return httpResponseUtil.ok("Get booking history success", response);
         } catch (Exception e) {
             System.err.println("Error getting booking history: " + e.getMessage());
             e.printStackTrace();

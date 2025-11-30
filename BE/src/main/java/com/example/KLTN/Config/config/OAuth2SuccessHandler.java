@@ -23,15 +23,11 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
         
-        System.out.println("=== OAuth2SuccessHandler called ===");
-        System.out.println("Authentication: " + authentication);
-        
         // Lấy token từ CustomOidcUserService hoặc CustomOAuth2UserService (static variable)
         String token = com.example.KLTN.Service.CustomOidcUserService.latestJwtToken;
         if (token == null || token.isBlank()) {
             token = com.example.KLTN.Service.CustomOAuth2UserService.latestJwtToken;
         }
-        System.out.println("Token from static variable: " + (token != null ? "EXISTS" : "NULL"));
         
         if (token != null && !token.isBlank()) {
             // Redirect đến frontend với token trong URL
@@ -39,11 +35,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                     .queryParam("token", token)
                     .build().toUriString();
             
-            System.out.println("Redirecting to: " + targetUrl);
             getRedirectStrategy().sendRedirect(request, response, targetUrl);
         } else {
             // Nếu không có token, redirect về login với lỗi
-            System.out.println("Token is null or blank, redirecting to login with error");
             String targetUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/login")
                     .queryParam("error", "oauth2_token_missing")
                     .build().toUriString();

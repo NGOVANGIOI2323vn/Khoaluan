@@ -48,7 +48,10 @@ public class SecurityConfig {
                         // Public API
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/oauth2/**", "/login/**", "/success", "/error").permitAll()
-                        .requestMatchers("/api/vnpay/**").permitAll()
+                        // VNPay callback (public - VNPay server gọi về)
+                        .requestMatchers(HttpMethod.GET, "/api/vnpay/return").permitAll()
+                        // VNPay create payment (cần authentication)
+                        .requestMatchers(HttpMethod.POST, "/api/vnpay/create").hasAnyRole("OWNER", "USER", "ADMIN")
                         // Public Hotel & Room endpoints
                         .requestMatchers(HttpMethod.GET, "/api/hotels").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/hotels/{id}").permitAll()
@@ -76,9 +79,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/bookings/**").hasRole("USER")
                         .requestMatchers(HttpMethod.PUT, "/api/bookings/{id}/pay").hasRole("USER")
                         .requestMatchers(HttpMethod.GET, "/api/bookings").hasRole("USER")
-                        .requestMatchers(HttpMethod.GET, "/api/bookings/rooms/{roomId}").hasAnyRole("OWNER", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/bookings/rooms/{roomId}").hasAnyRole("OWNER", "USER", "ADMIN")
                         // Role-based API - Reviews
                         .requestMatchers(HttpMethod.POST, "/api/hotels/{id}/reviews").hasRole("USER")
+                        // Role-based API - User Profile
+                        .requestMatchers(HttpMethod.GET, "/api/user/profile").hasAnyRole("OWNER", "USER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/user/profile").hasAnyRole("OWNER", "USER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/user/password").hasAnyRole("OWNER", "USER", "ADMIN")
                         // Role-based API - Wallet
                         .requestMatchers(HttpMethod.GET, "/api/wallet/balance").hasAnyRole("OWNER", "USER", "ADMIN")
                         // Role-based API - Withdraws

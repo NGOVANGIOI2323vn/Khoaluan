@@ -1,8 +1,12 @@
 import { motion } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '../components/Header'
-import { bookingService } from '../services/bookingService'
+import { bookingService, type Booking } from '../services/bookingService'
+import { vnpayService } from '../services/vnpayService'
+import { ownerService } from '../services/ownerService'
+import { userService } from '../services/userService'
+import { authService } from '../services/authService'
 import { useToast } from '../hooks/useToast'
 // BookingData interface
 interface BookingData {
@@ -20,7 +24,7 @@ interface BookingData {
   amenities: string[]
 }
 
-// Payment methods (static, no need for BE)
+// Payment methods
 const paymentMethods = [
   {
     id: 'wallet',
@@ -29,22 +33,10 @@ const paymentMethods = [
     description: 'Thanh toán bằng số dư ví của bạn',
   },
   {
-    id: 'credit',
-    label: 'Thẻ tín dụng/Ghi nợ',
-    icon: '💳',
-    description: 'Visa, Mastercard, JCB, Amex',
-  },
-  {
     id: 'vnpay',
     label: 'VNPay',
     icon: '💳',
     description: 'Cổng thanh toán VNPay',
-  },
-  {
-    id: 'bank',
-    label: 'Chuyển khoản ngân hàng',
-    icon: '🏦',
-    description: 'Vietcombank, BIDV, Techcombank, Vietinbank',
   },
 ]
 
@@ -85,17 +77,31 @@ const defaultBookingData: BookingData = {
 
 const Checkout = () => {
   const navigate = useNavigate()
-  const [paymentMethod, setPaymentMethod] = useState('credit')
+  const [paymentMethod, setPaymentMethod] = useState('wallet')
   const [promoCode, setPromoCode] = useState('')
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number } | null>(null)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [formData, setFormData] = useState({
-    cardNumber: '',
-    cardName: '',
-    expiryDate: '',
-    cvv: '',
     email: '',
     phone: '',
   })
+  const [validationErrors, setValidationErrors] = useState<{
+    email?: string
+    phone?: string
+  }>({})
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validatePhone = (phone: string) => {
+    const phoneRegex = /^[0-9+\-\s()]{9,15}$/
+    return phoneRegex.test(phone.replace(/\s/g, ''))
+  }
+  const [roomBookings, setRoomBookings] = useState<Booking[]>([])
+  const [loadingBookings, setLoadingBookings] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(new Date())
   // Đọc dữ liệu từ localStorage (từ trang Booking)
   const getBookingData = (): BookingData => {
     const savedBooking = localStorage.getItem('bookingInfo')
@@ -147,16 +153,259 @@ const Checkout = () => {
 
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
-  const { showSuccess, showError, showInfo } = useToast()
+  const { showSuccess, showError } = useToast()
   
   // Lấy dates từ query params hoặc localStorage
   const savedBooking = localStorage.getItem('bookingInfo')
-  const initialCheckIn = searchParams.get('checkIn') || (savedBooking ? JSON.parse(savedBooking).checkIn || JSON.parse(savedBooking).checkInDate : new Date().toISOString().split('T')[0])
-  const initialCheckOut = searchParams.get('checkOut') || (savedBooking ? JSON.parse(savedBooking).checkOut || JSON.parse(savedBooking).checkOutDate : new Date(Date.now() + 86400000).toISOString().split('T')[0])
+  const savedBookingData = savedBooking ? JSON.parse(savedBooking) : null
+  const initialCheckIn = searchParams.get('checkIn') || (savedBookingData?.checkIn || savedBookingData?.checkInDate || new Date().toISOString().split('T')[0])
+  const initialCheckOut = searchParams.get('checkOut') || (savedBookingData?.checkOut || savedBookingData?.checkOutDate || new Date(Date.now() + 86400000).toISOString().split('T')[0])
   
   const [checkIn, setCheckIn] = useState(initialCheckIn)
   const [checkOut, setCheckOut] = useState(initialCheckOut)
+  
+  // Lấy roomId từ searchParams hoặc localStorage
+  const roomIdFromParams = searchParams.get('roomId')
+  const roomIdFromStorage = savedBookingData?.roomId
+  const roomId = roomIdFromParams ? Number(roomIdFromParams) : (roomIdFromStorage ? Number(roomIdFromStorage) : null)
+  
+  // Fetch user profile to auto-fill email and phone
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!authService.isAuthenticated()) {
+        return
+      }
+      
+      try {
+        const response = await userService.getProfile()
+        if (response.data) {
+          // Tự động điền thông tin user, nhưng user vẫn có thể chỉnh sửa
+          setFormData({
+            email: response.data.email || '',
+            phone: response.data.phone || '',
+          })
+        }
+      } catch (err) {
+        // Silently fail - user might not be logged in or profile might not be available
+        console.error('Error fetching user profile:', err)
+      }
+    }
+    fetchUserProfile()
+  }, [])
+  
+  // Fetch wallet balance
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      try {
+        const response = await ownerService.getWalletBalance()
+        if (response.data) {
+          setWalletBalance(Number(response.data.balance))
+        }
+      } catch (err) {
+        // Silently fail - wallet might not be available
+        console.error('Error fetching wallet balance:', err)
+      }
+    }
+    fetchWalletBalance()
+  }, [])
+  
+  // Fetch room bookings for calendar
+  useEffect(() => {
+    const fetchRoomBookings = async () => {
+      if (!roomId) return
+      try {
+        setLoadingBookings(true)
+        const response = await bookingService.getBookingsByRoom(roomId)
+        if (response.data) {
+          setRoomBookings(response.data)
+        }
+      } catch (err) {
+        console.error('Error fetching room bookings:', err)
+      } finally {
+        setLoadingBookings(false)
+      }
+    }
+    fetchRoomBookings()
+  }, [roomId])
+  
+  // Helper functions for calendar
+  const isDateBooked = (date: Date, bookings: Booking[]): boolean => {
+    if (!bookings || bookings.length === 0) return false
+    
+    // Normalize date to YYYY-MM-DD format (local timezone, not UTC)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    
+    return bookings.some(booking => {
+      if (booking.status !== 'PAID' && booking.status !== 'PENDING') return false
+      
+      // Parse booking dates - handle both date strings and Date objects
+      let checkInStr: string
+      let checkOutStr: string
+      
+      if (typeof booking.checkInDate === 'string') {
+        checkInStr = booking.checkInDate.split('T')[0] // Remove time part if present
+      } else {
+        const checkInDate = new Date(booking.checkInDate)
+        checkInStr = `${checkInDate.getFullYear()}-${String(checkInDate.getMonth() + 1).padStart(2, '0')}-${String(checkInDate.getDate()).padStart(2, '0')}`
+      }
+      
+      if (typeof booking.checkOutDate === 'string') {
+        checkOutStr = booking.checkOutDate.split('T')[0] // Remove time part if present
+      } else {
+        const checkOutDate = new Date(booking.checkOutDate)
+        checkOutStr = `${checkOutDate.getFullYear()}-${String(checkOutDate.getMonth() + 1).padStart(2, '0')}-${String(checkOutDate.getDate()).padStart(2, '0')}`
+      }
+      
+      // Check if date is within booking range (checkIn inclusive, checkOut exclusive)
+      return dateStr >= checkInStr && dateStr < checkOutStr
+    })
+  }
+  
+  const getBookingForDate = (date: Date, bookings: Booking[]): Booking | null => {
+    if (!bookings || bookings.length === 0) return null
+    
+    // Normalize date to YYYY-MM-DD format (local timezone, not UTC)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    
+    return bookings.find(booking => {
+      if (booking.status !== 'PAID' && booking.status !== 'PENDING') return false
+      
+      // Parse booking dates - handle both date strings and Date objects
+      let checkInStr: string
+      let checkOutStr: string
+      
+      if (typeof booking.checkInDate === 'string') {
+        checkInStr = booking.checkInDate.split('T')[0] // Remove time part if present
+      } else {
+        const checkInDate = new Date(booking.checkInDate)
+        checkInStr = `${checkInDate.getFullYear()}-${String(checkInDate.getMonth() + 1).padStart(2, '0')}-${String(checkInDate.getDate()).padStart(2, '0')}`
+      }
+      
+      if (typeof booking.checkOutDate === 'string') {
+        checkOutStr = booking.checkOutDate.split('T')[0] // Remove time part if present
+      } else {
+        const checkOutDate = new Date(booking.checkOutDate)
+        checkOutStr = `${checkOutDate.getFullYear()}-${String(checkOutDate.getMonth() + 1).padStart(2, '0')}-${String(checkOutDate.getDate()).padStart(2, '0')}`
+      }
+      
+      // Check if date is within booking range (checkIn inclusive, checkOut exclusive)
+      return dateStr >= checkInStr && dateStr < checkOutStr
+    }) || null
+  }
+  
+  const generateCalendarDays = () => {
+    const year = selectedDate.getFullYear()
+    const month = selectedDate.getMonth()
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay()
+    
+    const days: (Date | null)[] = []
+    
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null)
+    }
+    
+    // Add all days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, month, day))
+    }
+    
+    return days
+  }
+  
+  // Check if selected date range conflicts with bookings
+  const isSelectedRangeBooked = () => {
+    if (!checkIn || !checkOut || !roomId) return false
+    const checkInDate = new Date(checkIn)
+    const checkOutDate = new Date(checkOut)
+    
+    return roomBookings.some((booking) => {
+      if (booking.status !== 'PAID' && booking.status !== 'PENDING') return false
+      const bookingCheckIn = new Date(booking.checkInDate)
+      const bookingCheckOut = new Date(booking.checkOutDate)
+      
+      return (
+        (bookingCheckIn <= checkInDate && bookingCheckOut > checkInDate) ||
+        (bookingCheckIn < checkOutDate && bookingCheckOut >= checkOutDate) ||
+        (bookingCheckIn >= checkInDate && bookingCheckOut <= checkOutDate)
+      )
+    })
+  }
+  
+  // Handle date click from calendar
+  const handleDateClick = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // Không cho phép chọn ngày quá khứ
+    if (date < today) {
+      showError('Không thể chọn ngày trong quá khứ')
+      return
+    }
+    
+    // Không cho phép chọn ngày đã được đặt
+    if (isDateBooked(date, roomBookings)) {
+      showError('Ngày này đã được đặt. Vui lòng chọn ngày khác.')
+      return
+    }
+    
+    // Logic chọn ngày:
+    // 1. Nếu chưa có checkIn hoặc ngày click < checkIn hiện tại: set checkIn
+    // 2. Nếu đã có checkIn và ngày click > checkIn: set checkOut
+    // 3. Nếu click vào ngày giữa checkIn và checkOut: không làm gì
+    // 4. Nếu click vào checkIn hoặc checkOut hiện tại: reset
+    
+    if (!checkIn) {
+      // Chưa có checkIn, set checkIn
+      setCheckIn(dateStr)
+    } else if (!checkOut) {
+      // Có checkIn nhưng chưa có checkOut
+      const checkInDate = new Date(checkIn)
+      if (date > checkInDate) {
+        setCheckOut(dateStr)
+      } else if (date < checkInDate) {
+        // Nếu click vào ngày trước checkIn, set làm checkIn mới
+        setCheckIn(dateStr)
+        setCheckOut('')
+      } else {
+        // Click vào chính checkIn, reset
+        setCheckIn('')
+      }
+    } else {
+      // Đã có cả checkIn và checkOut
+      const checkInDate = new Date(checkIn)
+      const checkOutDate = new Date(checkOut)
+      
+      if (dateStr === checkIn) {
+        // Click vào checkIn, reset checkIn
+        setCheckIn('')
+        setCheckOut('')
+      } else if (dateStr === checkOut) {
+        // Click vào checkOut, chỉ reset checkOut
+        setCheckOut('')
+      } else if (date < checkInDate) {
+        // Click vào ngày trước checkIn, set làm checkIn mới
+        setCheckIn(dateStr)
+        setCheckOut('')
+      } else if (date > checkOutDate) {
+        // Click vào ngày sau checkOut, set làm checkOut mới
+        setCheckOut(dateStr)
+      } else {
+        // Click vào ngày giữa checkIn và checkOut, set làm checkOut mới
+        setCheckOut(dateStr)
+      }
+    }
+  }
   
   // Tính toán lại số đêm và giá khi dates thay đổi
   const calculateNights = () => {
@@ -168,7 +417,6 @@ const Checkout = () => {
   }
   
   const nights = calculateNights()
-  const savedBookingData = savedBooking ? JSON.parse(savedBooking) : null
   const pricePerNight = savedBookingData?.roomPrice || bookingData.pricePerNight
   const subtotal = pricePerNight * nights
   const total = subtotal
@@ -204,18 +452,37 @@ const Checkout = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Validate form data
+    const errors: { email?: string; phone?: string } = {}
+    
+    if (!formData.email.trim()) {
+      errors.email = 'Email là bắt buộc'
+    } else if (!validateEmail(formData.email)) {
+      errors.email = 'Email không hợp lệ'
+    }
+    
+    if (!formData.phone.trim()) {
+      errors.phone = 'Số điện thoại là bắt buộc'
+    } else if (!validatePhone(formData.phone)) {
+      errors.phone = 'Số điện thoại không hợp lệ (9-15 số)'
+    }
+    
+    setValidationErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      return
+    }
+    
     // Lấy thông tin từ localStorage hoặc query params
     const savedBooking = localStorage.getItem('bookingInfo')
     const roomId = searchParams.get('roomId')
     
     if (!savedBooking && !roomId) {
-      setErrorMessage('Thiếu thông tin đặt phòng. Vui lòng quay lại trang trước.')
+      showError('Thiếu thông tin đặt phòng. Vui lòng quay lại trang trước.')
       return
     }
     
     try {
       setLoading(true)
-      setErrorMessage('')
       
       let bookingId: number | null = null
       
@@ -228,12 +495,12 @@ const Checkout = () => {
         today.setHours(0, 0, 0, 0)
         
         if (checkInDate < today) {
-          setErrorMessage('Ngày check-in phải từ hôm nay trở đi')
+          showError('Ngày check-in phải từ hôm nay trở đi')
           return
         }
         
         if (checkOutDate <= checkInDate) {
-          setErrorMessage('Ngày check-out phải sau ngày check-in')
+          showError('Ngày check-out phải sau ngày check-in')
           return
         }
         
@@ -250,7 +517,7 @@ const Checkout = () => {
           bookingInfo.bookingId = bookingId
           localStorage.setItem('bookingInfo', JSON.stringify(bookingInfo))
         } else {
-          setErrorMessage(bookingResponse.message || 'Không thể tạo booking')
+          showError(bookingResponse.message || 'Không thể tạo booking')
           return
         }
       } else if (savedBooking) {
@@ -260,7 +527,7 @@ const Checkout = () => {
       }
       
       if (!bookingId) {
-        setErrorMessage('Không tìm thấy thông tin booking')
+        showError('Không tìm thấy thông tin booking')
         return
       }
       
@@ -274,48 +541,66 @@ const Checkout = () => {
           localStorage.removeItem('bookingInfo')
           setTimeout(() => navigate('/booking-history'), 1500)
         } else {
-          setErrorMessage(paymentResponse.message || 'Thanh toán thất bại')
+          showError(paymentResponse.message || 'Thanh toán thất bại')
         }
       } else if (paymentMethod === 'vnpay') {
-        // TODO: Tích hợp VNPay nếu cần
-        showInfo('Tính năng thanh toán VNPay đang được phát triển. Vui lòng chọn phương thức thanh toán khác.')
+        // Thanh toán qua VNPay
+        const userId = localStorage.getItem('userId')
+        if (!userId) {
+          showError('Không tìm thấy thông tin người dùng')
+          return
+        }
+
+        const finalAmount = calculateFinalTotal()
+        const orderInfo = `Thanh toan dat phong|bookingId:${bookingId}|userId:${userId}`
+        
+        try {
+          const vnpayResponse = await vnpayService.createPayment(
+            finalAmount,
+            orderInfo,
+            'other'
+          )
+          
+          if (vnpayResponse?.url) {
+            // Lưu bookingId vào localStorage để xử lý sau khi callback
+            localStorage.setItem('pendingBookingId', bookingId.toString())
+            // Redirect đến VNPay
+            window.location.href = vnpayResponse.url
+          } else {
+            showError('Không thể tạo link thanh toán VNPay')
+          }
+        } catch (err: unknown) {
+          const error = err as { response?: { data?: { message?: string } } }
+          showError(error.response?.data?.message || 'Không thể tạo link thanh toán VNPay')
+        }
+        return // Không cần setLoading(false) vì đã redirect
       } else {
-        // Credit card - tạm thời tạo booking và chuyển đến booking history để thanh toán sau
-        showSuccess('Đặt phòng thành công! Vui lòng thanh toán trong lịch sử đặt phòng.')
-        localStorage.removeItem('bookingInfo')
-        setTimeout(() => navigate('/booking-history'), 1500)
+        showError('Vui lòng chọn phương thức thanh toán')
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      setErrorMessage(error.response?.data?.message || 'Có lỗi xảy ra khi đặt phòng')
+      const errorMessage = error.response?.data?.message || 'Có lỗi xảy ra khi đặt phòng'
+      showError(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <motion.h1
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6 md:mb-8"
+          className="mb-6 md:mb-8"
         >
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
           Thanh toán
-        </motion.h1>
-        
-        {errorMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
-          >
-            <p className="font-semibold">Lỗi:</p>
-            <p>{errorMessage}</p>
-          </motion.div>
-        )}
+          </h1>
+          <p className="text-gray-600 text-sm md:text-base">Hoàn tất đặt phòng của bạn</p>
+        </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
           {/* Booking Summary */}
@@ -325,8 +610,8 @@ const Checkout = () => {
             className="lg:col-span-2 space-y-4 md:space-y-6"
           >
             {/* Booking Details */}
-            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-bold mb-4">Chi tiết đặt phòng</h2>
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-6 md:p-8">
+              <h2 className="text-xl sm:text-2xl font-bold mb-5 text-gray-900">Chi tiết đặt phòng</h2>
               <div className="flex items-start gap-3 sm:gap-4 mb-4">
                 <img
                   src={updatedBookingData.hotelImage}
@@ -374,6 +659,161 @@ const Checkout = () => {
                     />
                   </div>
                 </div>
+                
+                {/* Room Availability Calendar */}
+                {roomId && (
+                  <div className="mt-4 p-4 bg-white rounded-lg border border-gray-200">
+                    <h4 className="text-base font-bold text-gray-900 mb-4">Lịch đặt phòng</h4>
+                    
+                    {/* Month Navigation */}
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <button
+                        onClick={() => {
+                          const newDate = new Date(selectedDate)
+                          newDate.setMonth(newDate.getMonth() - 1)
+                          setSelectedDate(newDate)
+                        }}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                      >
+                        ←
+                      </button>
+                      <span className="text-sm font-semibold flex-1 text-center">
+                        {selectedDate.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const newDate = new Date(selectedDate)
+                          newDate.setMonth(newDate.getMonth() + 1)
+                          setSelectedDate(newDate)
+                        }}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                      >
+                        →
+                      </button>
+                      <button
+                        onClick={() => setSelectedDate(new Date())}
+                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm whitespace-nowrap"
+                      >
+                        Hôm nay
+                      </button>
+                    </div>
+                    
+                    {loadingBookings ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-600 text-sm">Đang tải lịch đặt phòng...</p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Calendar Grid */}
+                        <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-4">
+                          {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map((day) => (
+                            <div key={day} className="text-center text-xs sm:text-sm font-semibold text-gray-600 py-2">
+                              {day}
+                            </div>
+                          ))}
+                          {generateCalendarDays().map((day, index) => {
+                            if (!day) {
+                              return <div key={`empty-${index}`} className="aspect-square" />
+                            }
+                            
+                            // Normalize dates for comparison (set to midnight local time)
+                            const dayNormalized = new Date(day.getFullYear(), day.getMonth(), day.getDate())
+                            const todayNormalized = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
+                            
+                            const isBooked = isDateBooked(dayNormalized, roomBookings)
+                            const booking = getBookingForDate(dayNormalized, roomBookings)
+                            
+                            const isToday = dayNormalized.getTime() === todayNormalized.getTime()
+                            const isPast = dayNormalized < todayNormalized
+                            
+                            // Check if day is in selected range
+                            let isInSelectedRange = false
+                            if (checkIn && checkOut) {
+                              const checkInNormalized = new Date(checkIn + 'T00:00:00')
+                              const checkOutNormalized = new Date(checkOut + 'T00:00:00')
+                              isInSelectedRange = dayNormalized >= checkInNormalized && dayNormalized < checkOutNormalized
+                            }
+                            
+                            // Check if this date is checkIn or checkOut
+                            const isCheckIn = checkIn && dayNormalized.toISOString().split('T')[0] === checkIn
+                            const isCheckOut = checkOut && dayNormalized.toISOString().split('T')[0] === checkOut
+                            
+                            return (
+                              <motion.div
+                                key={day.toISOString()}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => !isBooked && !isPast && handleDateClick(dayNormalized)}
+                                className={`aspect-square border-2 rounded-lg p-1 sm:p-2 transition text-xs ${
+                                  isBooked
+                                    ? 'bg-red-50 border-red-300 cursor-not-allowed opacity-60'
+                                    : isPast
+                                    ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
+                                    : isInSelectedRange
+                                    ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-300 cursor-pointer hover:bg-blue-100'
+                                    : 'bg-green-50 border-green-300 hover:bg-green-100 cursor-pointer'
+                                } ${isToday ? 'ring-2 ring-blue-500' : ''} ${isCheckIn || isCheckOut ? 'ring-2 ring-purple-400 border-purple-500 font-bold' : ''}`}
+                                title={
+                                  isBooked 
+                                    ? `Đã đặt: ${booking?.user?.username || 'N/A'}` 
+                                    : isPast 
+                                    ? 'Quá khứ' 
+                                    : isCheckIn
+                                    ? 'Ngày nhận phòng - Click để thay đổi'
+                                    : isCheckOut
+                                    ? 'Ngày trả phòng - Click để thay đổi'
+                                    : isInSelectedRange 
+                                    ? 'Khoảng thời gian bạn chọn - Click để thay đổi' 
+                                    : 'Click để chọn ngày'
+                                }
+                              >
+                                <div className={`text-xs font-semibold ${
+                                  isBooked ? 'text-red-700' : isPast ? 'text-gray-500' : isInSelectedRange ? 'text-blue-700' : 'text-green-700'
+                                }`}>
+                                  {day.getDate()}
+                                </div>
+                                {booking && (
+                                  <div className="text-[10px] text-red-600 mt-0.5 truncate">
+                                    {booking.user?.username || 'Đã đặt'}
+                                  </div>
+                                )}
+                              </motion.div>
+                            )
+                          })}
+                        </div>
+                        
+                        {/* Legend */}
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-green-50 border-2 border-green-300 rounded"></div>
+                            <span>Trống</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-red-50 border-2 border-red-300 rounded"></div>
+                            <span>Đã đặt</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-blue-50 border-2 border-blue-400 rounded"></div>
+                            <span>Bạn đã chọn</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-gray-100 border-2 border-gray-200 rounded opacity-50"></div>
+                            <span>Quá khứ</span>
+                          </div>
+                        </div>
+                        
+                        {/* Warning if selected range is booked */}
+                        {isSelectedRangeBooked() && (
+                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm text-red-700 font-semibold">
+                              ⚠️ Khoảng thời gian bạn chọn đã có người đặt. Vui lòng chọn khoảng thời gian khác.
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className="space-y-3 border-t pt-4">
@@ -410,8 +850,8 @@ const Checkout = () => {
             </div>
 
             {/* Payment Method */}
-            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-bold mb-4">Phương thức thanh toán</h2>
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-6 md:p-8">
+              <h2 className="text-xl sm:text-2xl font-bold mb-5 text-gray-900">Phương thức thanh toán</h2>
               <div className="space-y-3">
                 {paymentMethods.map((method) => (
                   <motion.button
@@ -429,106 +869,73 @@ const Checkout = () => {
                       <span className="text-xl sm:text-2xl flex-shrink-0">{method.icon}</span>
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm sm:text-base break-words">{method.label}</div>
-                        <div className="text-xs sm:text-sm text-gray-600 break-words">{method.description}</div>
+                        <div className="text-xs sm:text-sm text-gray-600 break-words">
+                          {method.description}
+                          {method.id === 'wallet' && walletBalance !== null && (
+                            <span className="block mt-1 font-semibold text-blue-600">
+                              Số dư: {walletBalance.toLocaleString('vi-VN')} VND
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </motion.button>
                 ))}
               </div>
+              {paymentMethod === 'wallet' && walletBalance !== null && calculateFinalTotal() > walletBalance && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ Số dư ví không đủ. Bạn cần thêm{' '}
+                    {(calculateFinalTotal() - walletBalance).toLocaleString('vi-VN')} VND để thanh toán.
+                  </p>
+                </div>
+              )}
             </div>
 
-            {/* Payment Form */}
-            {paymentMethod === 'credit' && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="bg-white rounded-xl shadow-lg p-4 sm:p-6"
-              >
-                <h2 className="text-xl sm:text-2xl font-bold mb-4">Thông tin thanh toán</h2>
-                <form className="space-y-4">
-                  <div>
-                    <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Số thẻ</label>
-                    <input
-                      type="text"
-                      value={formData.cardNumber}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim()
-                        setFormData({ ...formData, cardNumber: value })
-                      }}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
-                      placeholder="1234 5678 9012 3456"
-                      maxLength={19}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Tên chủ thẻ</label>
-                    <input
-                      type="text"
-                      value={formData.cardName}
-                      onChange={(e) => setFormData({ ...formData, cardName: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
-                      placeholder="NGUYEN VAN A"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Ngày hết hạn</label>
-                      <input
-                        type="text"
-                        value={formData.expiryDate}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1/$2')
-                          setFormData({ ...formData, expiryDate: value })
-                        }}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
-                        placeholder="MM/YY"
-                        maxLength={5}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">CVV</label>
-                      <input
-                        type="text"
-                        value={formData.cvv}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '')
-                          setFormData({ ...formData, cvv: value })
-                        }}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
-                        placeholder="123"
-                        maxLength={3}
-                      />
-                    </div>
-                  </div>
-                </form>
-              </motion.div>
-            )}
 
             {/* Contact Info */}
-            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-bold mb-4">Thông tin liên hệ</h2>
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-6 md:p-8">
+              <h2 className="text-xl sm:text-2xl font-bold mb-5 text-gray-900">Thông tin liên hệ</h2>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Email</label>
                   <input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
+                    onChange={(e) => {
+                      setFormData({ ...formData, email: e.target.value })
+                      if (validationErrors.email) {
+                        setValidationErrors({ ...validationErrors, email: undefined })
+                      }
+                    }}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 ${
+                      validationErrors.email ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="your@email.com"
-                    required
                   />
+                  {validationErrors.email && (
+                    <p className="mt-1 text-sm text-red-500">{validationErrors.email}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm sm:text-base text-gray-700 font-semibold mb-2">Số điện thoại</label>
                   <input
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
+                    onChange={(e) => {
+                      setFormData({ ...formData, phone: e.target.value })
+                      if (validationErrors.phone) {
+                        setValidationErrors({ ...validationErrors, phone: undefined })
+                      }
+                    }}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 ${
+                      validationErrors.phone ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="+84 123 456 789"
-                    required
                   />
+                  {validationErrors.phone && (
+                    <p className="mt-1 text-sm text-red-500">{validationErrors.phone}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -540,8 +947,8 @@ const Checkout = () => {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-1"
           >
-            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 sticky top-4">
-              <h2 className="text-lg sm:text-xl font-bold mb-4">Tóm tắt đơn hàng</h2>
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-6 md:p-8 sticky top-4">
+              <h2 className="text-xl sm:text-2xl font-bold mb-5 text-gray-900">Tóm tắt đơn hàng</h2>
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Giá phòng ({updatedBookingData.nights} đêm):</span>
@@ -566,14 +973,14 @@ const Checkout = () => {
               </div>
 
               {/* Promo Code */}
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <label className="block text-sm font-semibold mb-2">Mã giảm giá</label>
+              <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                <label className="block text-sm font-semibold mb-3 text-gray-700">Mã giảm giá</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={promoCode}
                     onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-600"
+                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập mã"
                   />
                   <motion.button
@@ -581,15 +988,21 @@ const Checkout = () => {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleApplyPromo}
-                    className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"
+                    className="bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition shadow-md"
                   >
                     Áp dụng
                   </motion.button>
                 </div>
                 {appliedPromo && (
-                  <p className="text-xs text-green-600 mt-2">
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 p-2 bg-green-100 border border-green-300 rounded-lg"
+                  >
+                    <p className="text-xs text-green-700 font-semibold">
                     ✓ Đã áp dụng mã {appliedPromo.code} - Giảm {appliedPromo.discount}%
                   </p>
+                  </motion.div>
                 )}
               </div>
 
@@ -598,10 +1011,10 @@ const Checkout = () => {
                 whileTap={{ scale: 0.98 }}
                 onClick={handleSubmit}
                 disabled={loading}
-                className={`w-full py-3 rounded-lg font-semibold transition shadow-lg mb-4 ${
+                className={`w-full py-4 rounded-xl font-semibold transition-all shadow-lg mb-4 text-base ${
                   loading
                     ? 'bg-gray-400 text-white cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/50'
                 }`}
               >
                 {loading ? 'Đang xử lý...' : 'Xác nhận thanh toán'}

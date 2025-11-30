@@ -1,9 +1,7 @@
 package com.example.KLTN.Service;
 
-import com.example.KLTN.Entity.TransactitonsEntity;
-import com.example.KLTN.Entity.UsersEntity;
-import com.example.KLTN.Entity.WalletTransactionEntity;
-import com.example.KLTN.Entity.WalletsEntity;
+import com.example.KLTN.Entity.*;
+import com.example.KLTN.Repository.BookingRepository;
 import com.example.KLTN.Repository.TransactitonsRepository;
 import com.example.KLTN.Service.Impl.TransactitonsServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,8 +9,10 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.google.zxing.WriterException;
 
 @RequiredArgsConstructor
 @Service
@@ -21,6 +21,9 @@ public class TransactitonsService implements TransactitonsServiceImpl {
     private final WalletService walletService;
     private final TransactitonsRepository transactitonsRepository;
     private final WalletTransactionService walletTransactionService;
+    private final BookingRepository bookingRepository;
+    private final Booking_transactionsService booking_transactionsService;
+    private final QrCodeService qrCodeService;
 
 
     // ================== Callback Failed ==================
@@ -70,17 +73,37 @@ public class TransactitonsService implements TransactitonsServiceImpl {
         String vnpTxnRef = request.getParameter("vnp_TxnRef");
         String orderInfo = request.getParameter("vnp_OrderInfo");
         String amountStr = request.getParameter("vnp_Amount");
-        double muoney = Double.parseDouble(amountStr.toString());
         Long id = null;
-        if (orderInfo.contains("|userId:")) {
+        Long bookingId = null;
+        
+        // Parse userId từ orderInfo
+        if (orderInfo != null && orderInfo.contains("|userId:")) {
             try {
                 String[] parts = orderInfo.split("\\|userId:");
-                id = Long.parseLong(parts[1]);
+                id = Long.parseLong(parts[1].split("\\|")[0]);
             } catch (Exception e) {
                 System.err.println("⚠ Không parse được userId từ orderInfo: " + orderInfo);
             }
         }
+        
+        // Parse bookingId từ orderInfo (nếu có)
+        if (orderInfo != null && orderInfo.contains("|bookingId:")) {
+            try {
+                String[] parts = orderInfo.split("\\|bookingId:");
+                if (parts.length > 1) {
+                    bookingId = Long.parseLong(parts[1].split("\\|")[0]);
+                }
+            } catch (Exception e) {
+                System.err.println("⚠ Không parse được bookingId từ orderInfo: " + orderInfo);
+            }
+        }
+        
         UsersEntity users = userService.findById(id);
+        if (users == null) {
+            System.err.println("⚠ Không tìm thấy user với id: " + id);
+            return;
+        }
+        
         WalletsEntity wallets = walletService.GetWallet(users);
 
         if (amountStr == null || vnpTxnRef == null) {
@@ -91,7 +114,49 @@ public class TransactitonsService implements TransactitonsServiceImpl {
         BigDecimal amount = new BigDecimal(amountStr).divide(BigDecimal.valueOf(100));
         TransactitonsEntity transactitons = new TransactitonsEntity();
 
-
+        // Nếu có bookingId, xử lý thanh toán booking
+        if (bookingId != null) {
+            try {
+                BookingEntity booking = bookingRepository.findById(bookingId).orElse(null);
+                if (booking != null && booking.getStatus() == BookingEntity.BookingStatus.PENDING) {
+                    // Cập nhật booking status = PAID
+                    booking.setStatus(BookingEntity.BookingStatus.PAID);
+                    
+                    // Tạo QR code
+                    String qrFileName = "qr_booking_" + booking.getId();
+                    try {
+                        qrCodeService.generateQrToFile(createContentQr(users, booking), qrFileName);
+                        booking.setQrUrl("/uploads/qr/" + qrFileName + ".png");
+                    } catch (WriterException | IOException e) {
+                        System.err.println("⚠ Lỗi tạo QR code: " + e.getMessage());
+                    }
+                    
+                    bookingRepository.save(booking);
+                    
+                    // Tạo booking transaction (phân chia doanh thu)
+                    booking_transactionsService.Create(booking);
+                    
+                    // Lưu transaction record
+                    transactitons.setStatus(TransactitonsEntity.Status.success);
+                    transactitons.setAmount(amount);
+                    transactitons.setVnpOrderInfo(orderInfo);
+                    transactitons.setCreatedAt(LocalDateTime.now());
+                    transactitons.setVnpTxnRef(vnpTxnRef);
+                    transactitons.setWallet(wallets);
+                    transactitons.setType(TransactitonsEntity.statustype.deposit);
+                    transactitonsRepository.save(transactitons);
+                    
+                    return;
+                } else {
+                    System.err.println("⚠ Booking không tìm thấy hoặc đã được xử lý: " + bookingId);
+                }
+            } catch (Exception e) {
+                System.err.println("⚠ Lỗi xử lý booking payment: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        // Nếu không có bookingId hoặc booking không hợp lệ, xử lý như nạp tiền vào ví
         wallets.setBalance(wallets.getBalance().add(amount));
         walletService.SaveWallet(wallets);
         transactitons.setStatus(TransactitonsEntity.Status.success);
@@ -102,7 +167,19 @@ public class TransactitonsService implements TransactitonsServiceImpl {
         transactitons.setWallet(wallets);
         transactitons.setType(TransactitonsEntity.statustype.deposit);
         transactitonsRepository.save(transactitons);
-        walletTransactionService.CreateWalletTransactionUUser(users, muoney, "Nạp tiền từ cổng vnpay", WalletTransactionEntity.TransactionType.DEPOSIT);
+        walletTransactionService.CreateWalletTransactionUUser(users, amount.doubleValue(), "Nạp tiền từ cổng vnpay", WalletTransactionEntity.TransactionType.DEPOSIT);
+    }
+    
+    private String createContentQr(UsersEntity user, BookingEntity booking) {
+        return "Name: " + user.getUsername() +
+                "\nKhách Sạn: " + booking.getHotel().getName() +
+                "\nĐịa chỉ: " + booking.getHotel().getAddress() +
+                "\nPhòng: " + booking.getRooms().getNumber() +
+                "\nCheck-in: " + booking.getCheckInDate() +
+                "\nCheck-out: " + booking.getCheckOutDate() +
+                "\nSố người: " + booking.getRooms().getCapacity() +
+                "\nGiá Phòng: " + booking.getTotalPrice() +
+                "\nThanh Toán: " + "Đã Thanh toán";
     }
 
     @Override

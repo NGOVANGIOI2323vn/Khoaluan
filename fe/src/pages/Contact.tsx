@@ -20,6 +20,23 @@ const Contact = () => {
   const [selectedOffice, setSelectedOffice] = useState<Office | null>(null)
   const [loading, setLoading] = useState(true)
   const { showSuccess, showError } = useToast()
+  const [validationErrors, setValidationErrors] = useState<{
+    name?: string
+    email?: string
+    phone?: string
+    message?: string
+  }>({})
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validatePhone = (phone: string) => {
+    if (!phone) return true // Phone is optional
+    const phoneRegex = /^[0-9+\-\s()]{9,15}$/
+    return phoneRegex.test(phone.replace(/\s/g, ''))
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,6 +67,36 @@ const Contact = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    const errors: { name?: string; email?: string; phone?: string; message?: string } = {}
+    
+    if (!formData.name.trim()) {
+      errors.name = 'Họ và tên là bắt buộc'
+    } else if (formData.name.trim().length < 2) {
+      errors.name = 'Họ và tên phải có ít nhất 2 ký tự'
+    }
+    
+    if (!formData.email.trim()) {
+      errors.email = 'Email là bắt buộc'
+    } else if (!validateEmail(formData.email)) {
+      errors.email = 'Email không hợp lệ'
+    }
+    
+    if (formData.phone && !validatePhone(formData.phone)) {
+      errors.phone = 'Số điện thoại không hợp lệ (9-15 số)'
+    }
+    
+    if (!formData.message.trim()) {
+      errors.message = 'Tin nhắn là bắt buộc'
+    } else if (formData.message.trim().length < 10) {
+      errors.message = 'Tin nhắn phải có ít nhất 10 ký tự'
+    }
+    
+    setValidationErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      return
+    }
+    
     try {
       const response = await infoService.createContactMessage(formData)
       if (response.data) {
@@ -82,7 +129,7 @@ const Contact = () => {
             backgroundSize: '60px 60px',
           }}
         />
-        <div className="max-w-7xl mx-auto px-4 relative z-10">
+        <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -97,7 +144,7 @@ const Contact = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-12 md:py-16">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12">
           {/* Contact Form */}
           <motion.div
@@ -115,43 +162,80 @@ const Contact = () => {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition"
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value })
+                    if (validationErrors.name) {
+                      setValidationErrors({ ...validationErrors, name: undefined })
+                    }
+                  }}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 transition ${
+                    validationErrors.name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   placeholder="Nhập họ và tên"
-                  required
                 />
+                {validationErrors.name && (
+                  <p className="mt-1 text-sm text-red-500">{validationErrors.name}</p>
+                )}
               </div>
               <div>
                 <label className="block text-gray-700 font-semibold mb-2">Email</label>
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition"
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value })
+                    if (validationErrors.email) {
+                      setValidationErrors({ ...validationErrors, email: undefined })
+                    }
+                  }}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 transition ${
+                    validationErrors.email ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   placeholder="Nhập email"
-                  required
                 />
+                {validationErrors.email && (
+                  <p className="mt-1 text-sm text-red-500">{validationErrors.email}</p>
+                )}
               </div>
               <div>
                 <label className="block text-gray-700 font-semibold mb-2">Số điện thoại</label>
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition"
-                  placeholder="Nhập số điện thoại"
+                  onChange={(e) => {
+                    setFormData({ ...formData, phone: e.target.value })
+                    if (validationErrors.phone) {
+                      setValidationErrors({ ...validationErrors, phone: undefined })
+                    }
+                  }}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 transition ${
+                    validationErrors.phone ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Nhập số điện thoại (tùy chọn)"
                 />
+                {validationErrors.phone && (
+                  <p className="mt-1 text-sm text-red-500">{validationErrors.phone}</p>
+                )}
               </div>
               <div>
                 <label className="block text-gray-700 font-semibold mb-2">Tin nhắn</label>
                 <textarea
                   value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, message: e.target.value })
+                    if (validationErrors.message) {
+                      setValidationErrors({ ...validationErrors, message: undefined })
+                    }
+                  }}
                   rows={5}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition resize-none"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600 transition resize-none ${
+                    validationErrors.message ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   placeholder="Nhập tin nhắn của bạn"
-                  required
                 />
+                {validationErrors.message && (
+                  <p className="mt-1 text-sm text-red-500">{validationErrors.message}</p>
+                )}
               </div>
               <motion.button
                 type="submit"

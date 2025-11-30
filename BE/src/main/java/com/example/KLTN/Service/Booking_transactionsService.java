@@ -87,7 +87,33 @@ public class Booking_transactionsService implements Booking_transactionsServiceI
     @Override
     public ResponseEntity<Apireponsi<List<Booking_transactionsEntity>>> findAllBooking_transactionsById() {
         try {
-            List<Booking_transactionsEntity> list = this.booking_transactionsRepository.findAll();
+            // Sử dụng method với JOIN FETCH để load đầy đủ dữ liệu
+            List<Booking_transactionsEntity> list = this.booking_transactionsRepository.findAllWithDetails();
+            
+            // Tính toán lại Admin_mount và User_mount cho các transaction chưa có
+            double percentAdmin = adminPercentService.findAdminPercentById(Long.parseLong("1")).getAdminPercent();
+            BigDecimal percentAdminBD = BigDecimal.valueOf(percentAdmin);
+            
+            boolean hasUpdate = false;
+            for (Booking_transactionsEntity transaction : list) {
+                // Nếu Admin_mount hoặc User_mount là null, tính toán lại
+                if (transaction.getAdmin_mount() == null || transaction.getUser_mount() == null) {
+                    if (transaction.getAmount() != null) {
+                        BigDecimal amouthAdmin = transaction.getAmount().multiply(percentAdminBD);
+                        BigDecimal amounthOwner = transaction.getAmount().subtract(amouthAdmin);
+                        transaction.setAdmin_mount(amouthAdmin);
+                        transaction.setUser_mount(amounthOwner);
+                        this.booking_transactionsRepository.save(transaction);
+                        hasUpdate = true;
+                    }
+                }
+            }
+            
+            // Nếu có update, load lại để đảm bảo dữ liệu mới nhất
+            if (hasUpdate) {
+                list = this.booking_transactionsRepository.findAllWithDetails();
+            }
+            
             return httpResponseUtil.ok("find all booking transactions successfully", list);
         } catch (Exception e) {
             return httpResponseUtil.error("Error", e);

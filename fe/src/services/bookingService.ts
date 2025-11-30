@@ -12,6 +12,7 @@ export interface Booking {
     id: number
     username: string
     email: string
+    phone?: string
   }
   hotel?: {
     id: number
@@ -39,6 +40,16 @@ export interface ApiResponse<T> {
   status: string
 }
 
+export interface PageResponse<T> {
+  content: T[]
+  totalPages: number
+  totalElements: number
+  currentPage: number
+  pageSize: number
+  hasNext: boolean
+  hasPrevious: boolean
+}
+
 export const bookingService = {
   createBooking: async (roomId: number, data: CreateBookingData) => {
     const response = await api.post<ApiResponse<Booking>>(`/bookings/rooms/${roomId}`, data)
@@ -50,8 +61,13 @@ export const bookingService = {
     return response.data
   },
 
-  getBookingHistory: async () => {
-    const response = await api.get<ApiResponse<Booking[]>>('/bookings')
+  getBookingHistory: async (page?: number, size?: number) => {
+    // Luôn gửi page và size để đảm bảo API trả về phân trang
+    const params: { page: number; size: number } = {
+      page: page !== undefined ? page : 0,
+      size: size !== undefined ? size : 8
+    }
+    const response = await api.get<ApiResponse<Booking[] | PageResponse<Booking>>>('/bookings', { params })
     return response.data
   },
 

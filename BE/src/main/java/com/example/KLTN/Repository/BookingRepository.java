@@ -2,6 +2,8 @@ package com.example.KLTN.Repository;
 
 import com.example.KLTN.Entity.BookingEntity;
 import com.example.KLTN.Entity.UsersEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,13 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
            "WHERE b.user = :user " +
            "ORDER BY b.bookingDate DESC")
     List<BookingEntity> findByUserOrderByBookingDateDesc(@Param("user") UsersEntity user);
+    
+    @Query("SELECT b FROM BookingEntity b " +
+           "LEFT JOIN FETCH b.hotel " +
+           "LEFT JOIN FETCH b.rooms " +
+           "WHERE b.user = :user " +
+           "ORDER BY b.bookingDate DESC")
+    Page<BookingEntity> findByUserOrderByBookingDateDesc(@Param("user") UsersEntity user, Pageable pageable);
     
     // Query để check xem room có available trong khoảng thời gian không
     // Logic: Hai khoảng thời gian overlap nếu:

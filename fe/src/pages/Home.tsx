@@ -1,13 +1,13 @@
 import { motion, useScroll, useTransform } from 'framer-motion'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Header from '../components/Header'
 import HotelCard from '../components/HotelCard'
+import BookingFilterForm from '../components/BookingFilterForm'
 import { hotelService, type Hotel, type HotelReview } from '../services/hotelService'
 import { useToast } from '../hooks/useToast'
 
 const Home = () => {
-  const navigate = useNavigate()
   const { scrollY } = useScroll()
   const opacity = useTransform(scrollY, [0, 300], [1, 0])
   const scale = useTransform(scrollY, [0, 300], [1, 0.95])
@@ -17,47 +17,13 @@ const Home = () => {
   const [topReviews, setTopReviews] = useState<Array<HotelReview & { hotelName?: string }>>([])
   const [loading, setLoading] = useState(true)
   const [newsletterEmail, setNewsletterEmail] = useState('')
+  const [newsletterError, setNewsletterError] = useState('')
   const { showSuccess, showError } = useToast()
-  
-  // Search form state
-  const [searchCity, setSearchCity] = useState('')
-  const [searchCheckIn, setSearchCheckIn] = useState('')
-  const [searchCheckOut, setSearchCheckOut] = useState('')
-  const [searchRooms, setSearchRooms] = useState(1)
-  const [showCityDropdown, setShowCityDropdown] = useState(false)
-  
-  const cities = ['Tất cả', 'Đà Nẵng', 'Hà Nội', 'Hồ Chí Minh', 'Nha Trang', 'Hội An', 'Huế', 'Phú Quốc']
-  
-  // Format date for input (YYYY-MM-DD)
-  const today = new Date().toISOString().split('T')[0]
-  
-  const handleSearch = () => {
-    const params = new URLSearchParams()
-    if (searchCity && searchCity !== 'Tất cả') params.set('city', searchCity)
-    if (searchCheckIn) params.set('checkIn', searchCheckIn)
-    if (searchCheckOut) params.set('checkOut', searchCheckOut)
-    if (searchRooms > 0) params.set('numberOfRooms', searchRooms.toString())
-    
-    navigate(`/hotels?${params.toString()}`)
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
   }
-  
-  // Close city dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
-      if (!target.closest('.city-dropdown-container')) {
-        setShowCityDropdown(false)
-      }
-    }
-    
-    if (showCityDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showCityDropdown])
 
   useEffect(() => {
     let isMounted = true // Flag để tránh update state sau khi component unmount
@@ -65,18 +31,18 @@ const Home = () => {
     const fetchHotels = async () => {
       try {
         setLoading(true)
-        // Lấy top hotels (sort by rating, limit 6)
+        // Lấy top hotels (sort by rating, limit 8)
         const featuredResponse = await hotelService.getAllHotels({
           sortBy: 'rating',
           page: 0,
-          size: 6,
+          size: 8,
         })
         
-        // Lấy popular hotels (sort by price ascending, limit 6)
+        // Lấy popular hotels (sort by price ascending, limit 8)
         const popularResponse = await hotelService.getAllHotels({
           sortBy: 'price_asc',
           page: 0,
-          size: 6,
+          size: 8,
         })
         
         // Chỉ update state nếu component vẫn còn mounted
@@ -86,7 +52,7 @@ const Home = () => {
           const hotels = Array.isArray(featuredResponse.data) 
             ? featuredResponse.data 
             : (featuredResponse.data as { content?: Hotel[] }).content || []
-          setFeaturedHotels(hotels.slice(0, 6))
+          setFeaturedHotels(hotels.slice(0, 8))
           
           // Lấy reviews từ top hotels
           const reviewsPromises = hotels.slice(0, 3).map(async (hotel) => {
@@ -118,7 +84,7 @@ const Home = () => {
             ? popularResponse.data 
             : (popularResponse.data as { content?: Hotel[] }).content || []
           if (isMounted) {
-          setPopularHotels(hotels.slice(0, 6))
+          setPopularHotels(hotels.slice(0, 8))
           }
         }
       } catch (error) {
@@ -144,12 +110,21 @@ const Home = () => {
   
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newsletterEmail || !newsletterEmail.includes('@')) {
-      showError('Vui lòng nhập email hợp lệ')
+    setNewsletterError('')
+    
+    if (!newsletterEmail.trim()) {
+      setNewsletterError('Email là bắt buộc')
       return
     }
+    
+    if (!validateEmail(newsletterEmail)) {
+      setNewsletterError('Email không hợp lệ')
+      return
+    }
+    
     showSuccess('Cảm ơn bạn đã đăng ký nhận thông tin khuyến mãi!')
     setNewsletterEmail('')
+    setNewsletterError('')
   }
 
   return (
@@ -220,7 +195,7 @@ const Home = () => {
         {/* Parallax Effect */}
         <motion.div
           style={{ opacity, scale }}
-          className="relative z-10 max-w-6xl mx-auto px-4 pt-16 sm:pt-24 md:pt-32"
+          className="relative z-10 max-w-6xl xl:max-w-[1200px] 2xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 md:pt-32"
         >
           <motion.div
             initial={{ opacity: 0, y: 50 }}
@@ -228,237 +203,29 @@ const Home = () => {
             transition={{ duration: 0.6 }}
             className="bg-white/95 backdrop-blur-sm rounded-xl md:rounded-2xl p-4 md:p-6 shadow-2xl border border-white/20"
           >
-            {/* Tabs with Animation */}
+            {/* Hero Title */}
             <motion.div
-              className="flex gap-2 md:gap-4 mb-4 md:mb-6 border-b pb-2"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-1 md:gap-2 pb-2 border-b-2 border-blue-600 text-blue-600 font-semibold text-sm md:text-base"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="mb-6 text-center"
               >
-                <motion.span
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: 1 }}
-                  className="text-lg md:text-xl"
-                >
-                  🏨
-                </motion.span>
-                <span>Hotels</span>
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-1 md:gap-2 pb-2 text-gray-500 hover:text-blue-600 transition text-sm md:text-base"
-              >
-                <span className="text-lg md:text-xl">🏠</span>
-                <span>Rental</span>
-              </motion.button>
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-3">
+                Tìm khách sạn hoàn hảo cho bạn
+              </h1>
+              <p className="text-gray-600 text-base md:text-lg">
+                Khám phá hàng ngàn khách sạn với giá tốt nhất
+              </p>
             </motion.div>
 
-            {/* Input Fields Grid with Stagger Animation */}
-            <motion.div
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4"
-              initial="hidden"
-              animate="visible"
-              variants={{
-                hidden: { opacity: 0 },
-                visible: {
-                  opacity: 1,
-                  transition: {
-                    staggerChildren: 0.1,
-                  },
-                },
-              }}
-            >
-              {/* City Selector */}
-                <motion.div
-                  variants={{
-                    hidden: { opacity: 0, y: 20 },
-                    visible: { opacity: 1, y: 0 },
-                  }}
-                  whileHover={{ scale: 1.02, y: -2 }}
-                className="relative city-dropdown-container"
-              >
-                <div 
-                  className="flex items-center gap-2 bg-gray-50 px-3 md:px-4 py-2 md:py-3 rounded border border-gray-300 hover:border-blue-500 transition cursor-pointer"
-                  onClick={() => setShowCityDropdown(!showCityDropdown)}
-                >
-                  <motion.span
-                    animate={{ rotate: [0, 15, -15, 0] }}
-                    transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-                    className="text-base md:text-lg"
-                  >
-                    📍
-                  </motion.span>
-                  <input
-                    type="text"
-                    placeholder="Thành phố (Tất cả)"
-                    value={searchCity || ''}
-                    readOnly
-                    className="flex-1 border-none outline-none bg-transparent text-sm md:text-base cursor-pointer"
-                  />
-                  <motion.span
-                    animate={{ y: [0, 3, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-                    className="text-gray-400 text-xs"
-                  >
-                    ▼
-                  </motion.span>
-                </div>
-                {showCityDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 max-h-60 overflow-y-auto"
-                  >
-                    {cities.map((city) => (
-                      <button
-                        key={city}
-                        type="button"
-                        onClick={() => {
-                          setSearchCity(city)
-                          setShowCityDropdown(false)
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-blue-50 text-sm md:text-base transition"
-                      >
-                        {city}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </motion.div>
-
-              {/* Check-in Date */}
-              <motion.div
-                variants={{
-                  hidden: { opacity: 0, y: 20 },
-                  visible: { opacity: 1, y: 0 },
-                }}
-                whileHover={{ scale: 1.02, y: -2 }}
-                className="flex items-center gap-2 bg-gray-50 px-3 md:px-4 py-2 md:py-3 rounded border border-gray-300 hover:border-blue-500 transition"
-              >
-                <motion.span
-                  animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: 1 }}
-                  className="text-base md:text-lg"
-                >
-                  📅
-                </motion.span>
-                <input
-                  type="date"
-                  placeholder="Ngày nhận phòng"
-                  value={searchCheckIn}
-                  min={today}
-                  onChange={(e) => {
-                    setSearchCheckIn(e.target.value)
-                    if (e.target.value >= searchCheckOut) {
-                      const newCheckOut = new Date(e.target.value)
-                      newCheckOut.setDate(newCheckOut.getDate() + 1)
-                      setSearchCheckOut(newCheckOut.toISOString().split('T')[0])
-                    }
-                  }}
-                  className="flex-1 border-none outline-none bg-transparent text-sm md:text-base"
-                />
-              </motion.div>
-
-              {/* Check-out Date */}
-              <motion.div
-                variants={{
-                  hidden: { opacity: 0, y: 20 },
-                  visible: { opacity: 1, y: 0 },
-                }}
-                whileHover={{ scale: 1.02, y: -2 }}
-                className="flex items-center gap-2 bg-gray-50 px-3 md:px-4 py-2 md:py-3 rounded border border-gray-300 hover:border-blue-500 transition"
-              >
-                <motion.span
-                  animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: 1.5 }}
-                  className="text-base md:text-lg"
-                >
-                  📅
-                </motion.span>
-                <input
-                  type="date"
-                  placeholder="Ngày trả phòng"
-                  value={searchCheckOut}
-                  min={searchCheckIn || today}
-                  onChange={(e) => setSearchCheckOut(e.target.value)}
-                  className="flex-1 border-none outline-none bg-transparent text-sm md:text-base"
-                />
-              </motion.div>
-
-              {/* Number of Rooms */}
-              <motion.div
-                variants={{
-                  hidden: { opacity: 0, y: 20 },
-                  visible: { opacity: 1, y: 0 },
-                }}
-                whileHover={{ scale: 1.02, y: -2 }}
-                className="flex items-center gap-2 bg-gray-50 px-3 md:px-4 py-2 md:py-3 rounded border border-gray-300 hover:border-blue-500 transition"
-              >
-                <motion.span
-                  animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: 2 }}
-                  className="text-base md:text-lg"
-                >
-                  🛏️
-                </motion.span>
-                <input
-                  type="number"
-                  placeholder="Số phòng"
-                  value={searchRooms}
-                  min={1}
-                  onChange={(e) => setSearchRooms(parseInt(e.target.value) || 1)}
-                  className="flex-1 border-none outline-none bg-transparent text-sm md:text-base"
-                />
-                </motion.div>
-            </motion.div>
-
-            {/* Search Button with Pulse Animation */}
-            <motion.div
-              className="flex justify-end"
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.6, type: 'spring' }}
-            >
-                <motion.button
-                onClick={handleSearch}
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  whileTap={{ scale: 0.9 }}
-                  animate={{
-                    boxShadow: [
-                      '0 0 0 0 rgba(59, 130, 246, 0.7)',
-                      '0 0 0 10px rgba(59, 130, 246, 0)',
-                      '0 0 0 0 rgba(59, 130, 246, 0)',
-                    ],
-                  }}
-                  transition={{
-                    boxShadow: {
-                      duration: 2,
-                      repeat: Infinity,
-                    },
-                  }}
-                  className="bg-blue-600 text-white p-3 md:p-4 rounded-lg hover:bg-blue-700 transition shadow-lg"
-                >
-                  <motion.span
-                    animate={{ rotate: [0, 360] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                    className="text-lg md:text-xl inline-block"
-                  >
-                    🔍
-                  </motion.span>
-                </motion.button>
-            </motion.div>
+            {/* Booking Filter Form */}
+            <BookingFilterForm variant="hero" />
           </motion.div>
         </motion.div>
       </div>
 
       {/* Featured Hotels Section */}
-      <div className="max-w-7xl mx-auto px-4 py-8 md:py-16">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -482,8 +249,8 @@ const Home = () => {
           </div>
           
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
+              {[...Array(8)].map((_, i) => (
                 <div
                   key={i}
                   className="bg-gray-200 rounded-lg h-64 animate-pulse"
@@ -491,7 +258,7 @@ const Home = () => {
               ))}
             </div>
           ) : featuredHotels.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
               {featuredHotels.map((hotel, index) => (
                 <HotelCard key={hotel.id} hotel={hotel} index={index} />
               ))}
@@ -506,7 +273,7 @@ const Home = () => {
 
       {/* Popular Destinations Section */}
       <div className="bg-gray-50 py-8 md:py-16">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -530,8 +297,8 @@ const Home = () => {
             </div>
             
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...Array(6)].map((_, i) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
+                {[...Array(8)].map((_, i) => (
                   <div
                     key={i}
                     className="bg-white rounded-lg h-64 animate-pulse"
@@ -539,7 +306,7 @@ const Home = () => {
                 ))}
               </div>
             ) : popularHotels.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
                 {popularHotels.map((hotel, index) => (
                   <HotelCard key={hotel.id} hotel={hotel} index={index} />
                 ))}
@@ -555,7 +322,7 @@ const Home = () => {
 
       {/* Special Offers Section */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-8 md:py-16">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -595,7 +362,7 @@ const Home = () => {
       </div>
 
       {/* Why Choose Us Section */}
-      <div className="max-w-7xl mx-auto px-4 py-8 md:py-16">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -611,7 +378,7 @@ const Home = () => {
           </p>
         </motion.div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
           {[
             {
               icon: '🔒',
@@ -654,7 +421,7 @@ const Home = () => {
       {/* Customer Reviews Section */}
       {topReviews.length > 0 && (
         <div className="bg-gray-50 py-8 md:py-16">
-          <div className="max-w-7xl mx-auto px-4">
+          <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -670,7 +437,7 @@ const Home = () => {
               </p>
             </motion.div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
               {topReviews.map((review, index) => (
                 <motion.div
                   key={index}
@@ -713,7 +480,7 @@ const Home = () => {
 
       {/* Newsletter Section */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-12 md:py-16">
-        <div className="max-w-4xl mx-auto px-4 text-center">
+        <div className="max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -728,14 +495,25 @@ const Home = () => {
               Nhận thông tin về các ưu đãi đặc biệt và khuyến mãi mới nhất
             </p>
             <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
+              <div className="flex-1">
               <input
                 type="email"
                 value={newsletterEmail}
-                onChange={(e) => setNewsletterEmail(e.target.value)}
+                  onChange={(e) => {
+                    setNewsletterEmail(e.target.value)
+                    if (newsletterError) {
+                      setNewsletterError('')
+                    }
+                  }}
                 placeholder="Nhập email của bạn"
-                className="flex-1 px-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-white"
-                required
+                  className={`w-full px-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-white ${
+                    newsletterError ? 'ring-2 ring-red-500' : ''
+                  }`}
               />
+                {newsletterError && (
+                  <p className="mt-1 text-sm text-red-200">{newsletterError}</p>
+                )}
+              </div>
           <motion.button
                 type="submit"
             whileHover={{ scale: 1.05 }}
@@ -750,7 +528,7 @@ const Home = () => {
       </div>
 
       {/* Popular Cities Section */}
-      <div className="max-w-7xl mx-auto px-4 py-8 md:py-16">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -760,7 +538,7 @@ const Home = () => {
           <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">
             Điểm đến phổ biến
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
             {[
               { name: 'Đà Nẵng', image: 'https://images.unsplash.com/photo-1602002418082-a4443e081dd1?w=400', count: '500+' },
               { name: 'Hà Nội', image: 'https://images.unsplash.com/photo-1523059623039-a9ed027e7fad?w=400', count: '800+' },
@@ -798,13 +576,13 @@ const Home = () => {
       </div>
 
       {/* Feature Cards with Advanced Animations */}
-      <div className="max-w-6xl mx-auto px-4 py-8 md:py-16">
+      <div className="max-w-6xl xl:max-w-[1200px] 2xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16">
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6"
         >
           {[
             {
@@ -898,7 +676,7 @@ const Home = () => {
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
-        className="max-w-6xl mx-auto px-4 py-8 md:py-16"
+        className="max-w-6xl xl:max-w-[1200px] 2xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16"
       >
         <motion.div
           className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 md:p-8 text-white overflow-hidden relative"

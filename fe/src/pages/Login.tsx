@@ -11,10 +11,38 @@ const Login = () => {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<{
+    username?: string
+    password?: string
+  }>({})
+
+  const validateForm = () => {
+    const errors: { username?: string; password?: string } = {}
+    
+    if (!formData.username.trim()) {
+      errors.username = 'Tài khoản là bắt buộc'
+    } else if (formData.username.trim().length < 3) {
+      errors.username = 'Tài khoản phải có ít nhất 3 ký tự'
+    }
+    
+    if (!formData.password) {
+      errors.password = 'Mật khẩu là bắt buộc'
+    } else if (formData.password.length < 6) {
+      errors.password = 'Mật khẩu phải có ít nhất 6 ký tự'
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    
+    if (!validateForm()) {
+      return
+    }
+    
     setLoading(true)
 
     try {
@@ -116,11 +144,20 @@ const Login = () => {
                   type="text"
                   placeholder="Nhập tài khoản"
                   value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  required
-                  className="w-full pl-10 pr-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-none outline-none text-sm md:text-base"
+                  onChange={(e) => {
+                    setFormData({ ...formData, username: e.target.value })
+                    if (validationErrors.username) {
+                      setValidationErrors({ ...validationErrors, username: undefined })
+                    }
+                  }}
+                  className={`w-full pl-10 pr-4 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-sm md:text-base ${
+                    validationErrors.username ? 'border-red-500' : 'border-transparent'
+                  }`}
                 />
               </div>
+              {validationErrors.username && (
+                <p className="mt-1 text-sm text-red-500">{validationErrors.username}</p>
+              )}
             </div>
 
             <div>
@@ -135,9 +172,15 @@ const Login = () => {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Nhập Mật Khẩu"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  className="w-full pl-10 pr-12 py-2.5 md:py-3 bg-gray-200 rounded-lg border-none outline-none text-sm md:text-base"
+                  onChange={(e) => {
+                    setFormData({ ...formData, password: e.target.value })
+                    if (validationErrors.password) {
+                      setValidationErrors({ ...validationErrors, password: undefined })
+                    }
+                  }}
+                  className={`w-full pl-10 pr-12 py-2.5 md:py-3 bg-gray-200 rounded-lg border-2 outline-none text-sm md:text-base ${
+                    validationErrors.password ? 'border-red-500' : 'border-transparent'
+                  }`}
                 />
                 <button
                   type="button"
@@ -147,6 +190,9 @@ const Login = () => {
                   {showPassword ? '🙈' : '👁️'}
                 </button>
               </div>
+              {validationErrors.password && (
+                <p className="mt-1 text-sm text-red-500">{validationErrors.password}</p>
+              )}
             </div>
 
             <button

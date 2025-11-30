@@ -43,22 +43,24 @@ const FormattedNumberInput = ({
 
   // Initialize display value
   useEffect(() => {
-    if (value !== undefined && value !== null) {
+    if (value !== undefined && value !== null && value !== '') {
       const numValue = typeof value === 'string' ? parseNumber(value) : value
-      setDisplayValue(formatNumber(numValue))
-    } else {
+      const formatted = formatNumber(numValue)
+      if (formatted !== displayValue) {
+        setDisplayValue(formatted)
+      }
+    } else if (displayValue !== '') {
       setDisplayValue('')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
     const numValue = parseNumber(inputValue)
     
-    // Validate min/max
-    if (min !== undefined && numValue < min) {
-      return
-    }
+    // Allow typing during input, only enforce max limit
+    // Min validation will be done on blur/submit
     if (max !== undefined && numValue > max) {
       return
     }
@@ -68,9 +70,18 @@ const FormattedNumberInput = ({
   }
 
   const handleBlur = () => {
-    // Ensure value is formatted on blur
+    // Ensure value is formatted on blur and validate min
     const numValue = parseNumber(displayValue)
-    setDisplayValue(formatNumber(numValue))
+    let finalValue = numValue
+    
+    // Enforce min value on blur
+    if (min !== undefined && numValue < min) {
+      finalValue = min
+      setDisplayValue(formatNumber(finalValue))
+      onChange(finalValue)
+    } else {
+      setDisplayValue(formatNumber(finalValue))
+    }
   }
 
   const handleFocus = () => {

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Header from '../components/Header'
 import GoogleMapComponent from '../components/GoogleMap'
+import RoomAvailability from '../components/RoomAvailability'
 import { hotelService } from '../services/hotelService'
 import { useToast } from '../hooks/useToast'
 import type { Hotel, Room, HotelReview } from '../services/hotelService'
@@ -10,6 +11,7 @@ import type { Hotel, Room, HotelReview } from '../services/hotelService'
 const HotelDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { showSuccess, showError } = useToast()
   const [hotel, setHotel] = useState<Hotel | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
@@ -24,6 +26,11 @@ const HotelDetail = () => {
     comment: '',
   })
   const [submittingReview, setSubmittingReview] = useState(false)
+  const [reviewError, setReviewError] = useState('')
+  
+  // Lấy dates từ URL params
+  const checkIn = searchParams.get('checkIn') || ''
+  const checkOut = searchParams.get('checkOut') || ''
 
   useEffect(() => {
     const checkAuth = () => {
@@ -65,15 +72,29 @@ const HotelDetail = () => {
 
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault()
+    setReviewError('')
+    
     if (!isAuthenticated) {
       showError('Vui lòng đăng nhập để đánh giá')
       navigate('/login')
       return
     }
+    
     if (!reviewForm.comment.trim()) {
-      showError('Vui lòng nhập nội dung đánh giá')
+      setReviewError('Vui lòng nhập nội dung đánh giá')
       return
     }
+    
+    if (reviewForm.comment.trim().length < 10) {
+      setReviewError('Nội dung đánh giá phải có ít nhất 10 ký tự')
+      return
+    }
+    
+    if (reviewForm.comment.trim().length > 1000) {
+      setReviewError('Nội dung đánh giá không được quá 1000 ký tự')
+      return
+    }
+    
     if (!id) return
 
     try {
@@ -129,51 +150,53 @@ const HotelDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <Header showBookingForm={true} />
 
-      <div className="max-w-7xl mx-auto px-4 py-4 md:py-8">
+      <div className="max-w-7xl xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
         {/* Hotel Name & Rating */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 md:mb-6 gap-4">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 md:p-8 mb-6 md:mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex-1">
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">{hotel.name}</h1>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{hotel.name}</h1>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-yellow-400 text-lg md:text-xl">⭐</span>
-              <span className="font-semibold text-base md:text-lg">{hotel.rating || 0}</span>
+                <span className="font-semibold text-base md:text-lg text-gray-900">{hotel.rating || 0}</span>
               <span className="text-gray-500 text-sm md:text-base">({reviews.length} đánh giá)</span>
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="p-2 border border-gray-300 rounded hover:bg-gray-50 transition text-sm md:text-base">
+              <button className="p-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition text-sm md:text-base shadow-sm">
               ❤️
             </button>
-            <button className="p-2 border border-gray-300 rounded hover:bg-gray-50 transition text-sm md:text-base">
+              <button className="p-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition text-sm md:text-base shadow-sm">
               📤
             </button>
+            </div>
           </div>
         </div>
 
         {/* Image Gallery */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
           <div className="row-span-2 col-span-2 sm:col-span-1">
             <img
               src={hotel.image}
               alt={hotel.name}
-              className="w-full h-full min-h-[200px] sm:min-h-[250px] md:min-h-[300px] object-cover rounded-lg shadow-lg"
+                className="w-full h-full min-h-[200px] sm:min-h-[250px] md:min-h-[300px] object-cover rounded-xl shadow-xl"
             />
           </div>
           <img
             src="https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=400"
             alt="Room"
-            className="w-full h-24 sm:h-32 md:h-48 object-cover rounded-lg shadow-lg"
+            className="w-full h-24 sm:h-32 md:h-48 object-cover rounded-xl shadow-xl"
           />
           <div className="relative">
             <img
               src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400"
               alt="Bathroom"
-              className="w-full h-24 sm:h-32 md:h-48 object-cover rounded-lg shadow-lg"
+              className="w-full h-24 sm:h-32 md:h-48 object-cover rounded-xl shadow-xl"
             />
-            <div className="absolute bottom-2 right-2 bg-white/90 px-2 md:px-3 py-1 rounded text-xs md:text-sm">
+            <div className="absolute bottom-2 right-2 bg-white/95 backdrop-blur-sm px-3 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-semibold shadow-lg border border-gray-200">
               53 photos
             </div>
           </div>
@@ -214,7 +237,7 @@ const HotelDetail = () => {
           <div className="ml-auto">
             <button
               onClick={() => navigate(`/booking/${id}`)}
-              className="bg-blue-600 text-white px-3 md:px-6 py-1.5 md:py-2 rounded hover:bg-blue-700 transition text-sm md:text-base whitespace-nowrap"
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 md:px-6 py-2 md:py-2.5 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition shadow-lg font-semibold text-sm md:text-base whitespace-nowrap"
             >
               Chọn phòng
             </button>
@@ -261,6 +284,14 @@ const HotelDetail = () => {
                           <span>Giảm giá: {(room.discountPercent * 100).toFixed(0)}%</span>
                   </div>
                       )}
+                </div>
+                {/* Room Availability */}
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                  <RoomAvailability 
+                    roomId={room.id} 
+                    checkIn={checkIn}
+                    checkOut={checkOut}
+                  />
                 </div>
               </div>
               <div className="flex items-center justify-center md:block">
@@ -469,14 +500,24 @@ const HotelDetail = () => {
                       </label>
                       <textarea
                         value={reviewForm.comment}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setReviewForm({ ...reviewForm, comment: e.target.value })
+                          if (reviewError) {
+                            setReviewError('')
                         }
+                        }}
                         rows={4}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none ${
+                          reviewError ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         placeholder="Chia sẻ trải nghiệm của bạn về khách sạn này..."
-                        required
                       />
+                      {reviewError && (
+                        <p className="mt-1 text-sm text-red-500">{reviewError}</p>
+                      )}
+                      <p className="mt-1 text-xs text-gray-500">
+                        {reviewForm.comment.length}/1000 ký tự
+                      </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <button

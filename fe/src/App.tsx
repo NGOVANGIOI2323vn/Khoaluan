@@ -12,11 +12,13 @@ import Contact from './pages/Contact'
 import Checkout from './pages/Checkout'
 import AdminDashboard from './pages/AdminDashboard'
 import OwnerDashboard from './pages/OwnerDashboard'
+import Profile from './pages/Profile'
+import Wallet from './pages/Wallet'
+import VnpayCallback from './pages/VnpayCallback'
 import NotFound from './pages/NotFound'
 import OAuth2Callback from './pages/OAuth2Callback'
 import ProtectedRoute from './components/ProtectedRoute'
 import ChatBox from './components/ChatBox'
-import './App.css'
 import { ToastProvider } from './contexts/ToastContext'
 
 function App() {
@@ -59,6 +61,23 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wallet"
+          element={
+            <ProtectedRoute>
+              <Wallet />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/vnpay/callback" element={<VnpayCallback />} />
         <Route path="*" element={<NotFound />} />
         </Routes>
         <ChatBox />
