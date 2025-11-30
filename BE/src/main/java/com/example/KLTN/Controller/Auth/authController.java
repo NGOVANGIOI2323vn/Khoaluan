@@ -2,8 +2,11 @@ package com.example.KLTN.Controller.Auth;
 
 import com.example.KLTN.Service.AuthService;
 import com.example.KLTN.Service.CustomOAuth2UserService;
+import com.example.KLTN.Service.UserService;
 import com.example.KLTN.dto.*;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.boot.autoconfigure.neo4j.Neo4jProperties.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class authController {
     private final AuthService authService;
-
+    private final UserService userService;
 
     // Đăng ký user
     @PostMapping("/register")
@@ -42,6 +45,7 @@ public class authController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody authRequesDTO dto) {
         return authService.login(dto);
+
     }
 
     // OAuth2 login success
@@ -52,11 +56,34 @@ public class authController {
         if (jwtToken == null || jwtToken.isBlank()) {
             jwtToken = CustomOAuth2UserService.latestJwtToken;
         }
-        
+
         if (jwtToken == null || jwtToken.isBlank()) {
             return ResponseEntity.status(401).body("Không tìm thấy token. Vui lòng đăng nhập lại.");
         }
         return authService.loginOAuth2Success(jwtToken);
     }
-}
 
+    @PostMapping("/change-password")
+    public String changePassword(Authentication authentication,
+            @RequestBody ChangePasswordRequestDTO request) {
+        String username = authentication.getUsername(); // Lấy từ JWT
+        userService.changePassword(username, request);
+        return "Đổi mật khẩu thành công!";
+    }
+
+    /// quen mk
+    /// @PostMapping("/forgot-password/send-otp")
+    public ResponseEntity<?> sendOtpForgot(@RequestParam String email) {
+        return authService.sendOtpForgot(email);
+    }
+
+    @PostMapping("/forgot-password/verify-otp")
+    public ResponseEntity<?> verifyForgotOtp(@RequestBody VerifyDTO dto) {
+        return authService.verifyForgotOtp(dto);
+    }
+
+    @PostMapping("/forgot-password/reset")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordDTO dto) {
+        return authService.resetPassword(dto);
+    }
+}

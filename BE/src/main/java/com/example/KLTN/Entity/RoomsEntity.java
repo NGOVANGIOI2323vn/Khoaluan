@@ -1,5 +1,7 @@
 package com.example.KLTN.Entity;
 
+import java.time.LocalDate;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -26,9 +28,10 @@ public class RoomsEntity {
         FAMILY,
         STUDIO
     }
+
     public enum Status {
-        AVAILABLE,  // còn phòng
-        BOOKED,// đã đặt
+        AVAILABLE, // còn phòng
+        BOOKED, // đã đặt
         MAINTENANCE // bảo trì
     }// Ngày kết thúc booking
 
@@ -44,13 +47,15 @@ public class RoomsEntity {
     private RoomType type;
     @Enumerated(EnumType.STRING)
     private Status status;
+    @Column(name = "next_available_date")
+    private LocalDate nextAvailableDate;
     private Double price;
     private Integer capacity;
     private String image;
     @Column(nullable = false)
     private boolean deleted = false;
     @ManyToOne(fetch = FetchType.LAZY)
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "rooms", "owner"})
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "rooms", "owner" })
     @JoinColumn(name = "hotel_id", nullable = false)
     private HotelEntity hotel;
 

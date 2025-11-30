@@ -14,11 +14,11 @@ public class CompanyInfoEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
-    @Column(nullable = false, unique = true)
-    private String key; // 'mission', 'vision', 'founded', 'name'
-    
+
+    @Column(name = "`key`", nullable = false)
+    private String key;
+    // 'mission', 'vision', 'founded', 'name'
+
     @Column(columnDefinition = "TEXT")
     private String value;
 }
-
