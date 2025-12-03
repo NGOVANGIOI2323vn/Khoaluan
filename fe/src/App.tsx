@@ -5,6 +5,8 @@ import HotelDetail from './pages/HotelDetail'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import VerifyOtp from './pages/VerifyOtp'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import Booking from './pages/Booking'
 import BookingHistory from './pages/BookingHistory'
 import About from './pages/About'
@@ -19,6 +21,7 @@ import InvoicePage from './pages/InvoicePage'
 import QRScanResult from './pages/QRScanResult'
 import NotFound from './pages/NotFound'
 import OAuth2Callback from './pages/OAuth2Callback'
+import OAuth2CodeHandler from './pages/OAuth2CodeHandler'
 import ProtectedRoute from './components/ProtectedRoute'
 import ChatBox from './components/ChatBox'
 import { ToastProvider } from './contexts/ToastContext'
@@ -35,7 +38,10 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/oauth2/callback" element={<OAuth2Callback />} />
+        <Route path="/login/oauth2/code/google" element={<OAuth2CodeHandler />} />
         <Route
           path="/booking-history"
           element={

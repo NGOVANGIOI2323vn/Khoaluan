@@ -88,6 +88,23 @@ export const authService = {
     return response.data
   },
 
+  sendForgotPasswordOtp: async (email: string) => {
+    const response = await api.post('/auth/forgot-password/send-otp', null, {
+      params: { email },
+    })
+    return response.data
+  },
+
+  verifyForgotPasswordOtp: async (data: VerifyOtpData) => {
+    const response = await api.post<AuthResponse>('/auth/forgot-password/verify-otp', data)
+    return response.data
+  },
+
+  resetPassword: async (data: { email: string; otp: string; newPassword: string }) => {
+    const response = await api.post<AuthResponse>('/auth/forgot-password/reset', data)
+    return response.data
+  },
+
   logout: () => {
     localStorage.removeItem('token')
     localStorage.removeItem('userRole')

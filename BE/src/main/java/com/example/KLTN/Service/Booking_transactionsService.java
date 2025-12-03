@@ -8,9 +8,14 @@ import com.example.KLTN.Repository.Booking_transactionsRepository;
 import com.example.KLTN.Service.Impl.Booking_transactionsServiceImpl;
 import com.example.KLTN.dto.Apireponsi;
 import com.example.KLTN.dto.HotelRevenueDTO;
+import com.example.KLTN.dto.PageResponse;
 import com.example.KLTN.dto.RevenueSummaryDTO;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -118,6 +123,67 @@ public class Booking_transactionsService implements Booking_transactionsServiceI
         } catch (Exception e) {
             return httpResponseUtil.error("Error", e);
 
+        }
+    }
+
+    // Lấy tất cả transactions với pagination và search
+    public ResponseEntity<Apireponsi<PageResponse<Booking_transactionsEntity>>> getAllTransactionsPaginated(
+            String search, Integer page, Integer size) {
+        try {
+            // Set defaults
+            int pageNumber = (page != null && page >= 0) ? page : 0;
+            int pageSize = (size != null && size > 0) ? size : 10;
+
+            // Tạo Pageable với sort theo id DESC
+            Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "id"));
+
+            // Normalize search string
+            String searchQuery = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+            
+            // Try to parse search as Long for ID search
+            Long searchId = null;
+            if (searchQuery != null) {
+                try {
+                    searchId = Long.parseLong(searchQuery);
+                } catch (NumberFormatException e) {
+                    // Not a number, searchId remains null
+                    searchId = null;
+                }
+            }
+
+            // Query với search
+            Page<Booking_transactionsEntity> transactionPage = booking_transactionsRepository.findAllWithDetailsPaginated(searchQuery, searchId, pageable);
+
+            // Tính toán lại Admin_mount và User_mount cho các transaction trong page
+            double percentAdmin = adminPercentService.findAdminPercentById(Long.parseLong("1")).getAdminPercent();
+            BigDecimal percentAdminBD = BigDecimal.valueOf(percentAdmin);
+
+            for (Booking_transactionsEntity transaction : transactionPage.getContent()) {
+                if (transaction.getAdmin_mount() == null || transaction.getUser_mount() == null) {
+                    if (transaction.getAmount() != null) {
+                        BigDecimal amouthAdmin = transaction.getAmount().multiply(percentAdminBD);
+                        BigDecimal amounthOwner = transaction.getAmount().subtract(amouthAdmin);
+                        transaction.setAdmin_mount(amouthAdmin);
+                        transaction.setUser_mount(amounthOwner);
+                        booking_transactionsRepository.save(transaction);
+                    }
+                }
+            }
+
+            // Convert to PageResponse
+            PageResponse<Booking_transactionsEntity> pageResponse = new PageResponse<>(
+                    transactionPage.getContent(),
+                    transactionPage.getTotalPages(),
+                    transactionPage.getTotalElements(),
+                    transactionPage.getNumber(),
+                    transactionPage.getSize(),
+                    transactionPage.hasNext(),
+                    transactionPage.hasPrevious()
+            );
+
+            return httpResponseUtil.ok("Lấy danh sách giao dịch thành công", pageResponse);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Lỗi khi lấy danh sách giao dịch", e);
         }
     }
 

@@ -28,6 +28,7 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final CustomOidcUserService customOidcUserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final OAuth2FailureHandler oAuth2FailureHandler;
     private final ClientRegistrationRepository clientRegistrationRepository;
     
     @Value("${app.frontend.url:http://localhost:3000}")
@@ -110,6 +111,9 @@ public class SecurityConfig {
                         // Admin Hotel Management
                         .requestMatchers(HttpMethod.GET, "/api/admin/hotels/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/admin/hotels/**").hasRole("ADMIN")
+                        // Admin Review Management
+                        .requestMatchers(HttpMethod.GET, "/api/admin/reviews").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/reviews/**").hasRole("ADMIN")
                         // All others
                         .anyRequest().authenticated()
                 )
@@ -121,7 +125,7 @@ public class SecurityConfig {
                 // OAuth2 login
                 .oauth2Login(oauth -> oauth
                         .successHandler(oAuth2SuccessHandler)
-                        .failureUrl(frontendUrl + "/login?error=oauth2_failed")
+                        .failureHandler(oAuth2FailureHandler)
                         .authorizationEndpoint(authorization -> authorization
                                 .authorizationRequestResolver(
                                         new CustomOAuth2AuthorizationRequestResolver(

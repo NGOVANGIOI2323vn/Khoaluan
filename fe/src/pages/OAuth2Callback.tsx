@@ -10,8 +10,27 @@ const OAuth2Callback = () => {
   useEffect(() => {
     const handleOAuth2Callback = async () => {
       try {
-        // Lấy token từ URL parameter
+        // Lấy parameters từ URL
         const urlParams = new URLSearchParams(window.location.search)
+        
+        // Kiểm tra error parameters trước (nếu có error, redirect về login với error message)
+        const errorParam = urlParams.get('error')
+        const messageParam = urlParams.get('message')
+        
+        if (errorParam) {
+          const errorMessage = messageParam 
+            ? decodeURIComponent(messageParam) 
+            : 'Đăng nhập Google thất bại. Vui lòng thử lại.'
+          setError(errorMessage)
+          setLoading(false)
+          // Redirect về login với error message sau 2 giây
+          setTimeout(() => {
+            navigate(`/login?error=${errorParam}&message=${encodeURIComponent(errorMessage)}`)
+          }, 2000)
+          return
+        }
+        
+        // Lấy token từ URL parameter
         const token = urlParams.get('token')
 
         if (!token) {

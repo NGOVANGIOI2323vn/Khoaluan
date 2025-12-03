@@ -8,9 +8,11 @@ import type { BookingTransaction, WithdrawRequest, RevenueSummary } from '../ser
 import type { Booking } from '../services/bookingService'
 import Header from '../components/Header'
 import AppModal from '../components/AppModal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import HotelForm, { type HotelFormData } from '../components/HotelForm'
 import HotelCard from '../components/HotelCard'
 import { useToast } from '../hooks/useToast'
+import { useConfirm } from '../hooks/useConfirm'
 import cloudinaryService from '../utils/cloudinaryService'
 import FormattedNumberInput from '../components/FormattedNumberInput'
 import WithdrawForm, { type WithdrawFormData } from '../components/WithdrawForm'
@@ -52,6 +54,7 @@ const OwnerDashboard = () => {
   const [bulkDiscount, setBulkDiscount] = useState('')
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const { showSuccess, showError } = useToast()
+  const { confirm, close, handleConfirm, confirmState } = useConfirm()
   const withdrawsSectionRef = useRef<HTMLDivElement>(null)
 
   const filterHotels = useCallback((hotelsList: Hotel[], query: string) => {
@@ -412,8 +415,12 @@ const OwnerDashboard = () => {
 
 
   const handleDeleteHotel = async (hotelId: number) => {
-    const confirmDelete = window.confirm('Bạn có chắc chắn muốn xóa khách sạn này?')
-    if (!confirmDelete) return
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa khách sạn',
+      message: 'Bạn có chắc chắn muốn xóa khách sạn này? Hành động này không thể hoàn tác.',
+      type: 'danger',
+    })
+    if (!confirmed) return
     try {
       setDeletingHotelId(hotelId)
       await ownerService.deleteHotel(hotelId)
@@ -487,6 +494,12 @@ const OwnerDashboard = () => {
       showError('Giảm giá phải nằm trong khoảng từ 0% đến 100%. Vui lòng nhập lại.')
       return
     }
+    const confirmed = await confirm({
+      title: 'Xác nhận áp dụng giảm giá',
+      message: `Bạn có chắc chắn muốn áp dụng giảm giá ${discount}% cho tất cả phòng trong khách sạn "${selectedHotel.name}"?`,
+      type: 'warning',
+    })
+    if (!confirmed) return
     try {
       await ownerService.setAllDiscountPercent(selectedHotel.id, discount / 100)
       showSuccess('Đã cập nhật giảm giá cho tất cả phòng')
@@ -499,6 +512,19 @@ const OwnerDashboard = () => {
   }
 
   const handleUpdateRoomStatus = async (roomId: number, status: 'AVAILABLE' | 'BOOKED' | 'MAINTENANCE') => {
+    const statusNames = {
+      AVAILABLE: 'Trống',
+      BOOKED: 'Đã đặt',
+      MAINTENANCE: 'Bảo trì'
+    }
+    if (status !== 'AVAILABLE') {
+      const confirmed = await confirm({
+        title: 'Xác nhận thay đổi trạng thái phòng',
+        message: `Bạn có chắc chắn muốn chuyển trạng thái phòng sang "${statusNames[status]}"? Phòng sẽ không thể được đặt cho đến khi bạn đổi lại trạng thái.`,
+        type: 'warning',
+      })
+      if (!confirmed) return
+    }
     try {
       await ownerService.updateRoomStatus(roomId, status)
       if (selectedHotel) fetchRooms(selectedHotel.id)
@@ -1746,6 +1772,18 @@ const OwnerDashboard = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        onClose={close}
+        onConfirm={handleConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        type={confirmState.type}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+      />
     </div>
   )
 }

@@ -58,5 +58,23 @@ public class authController {
         }
         return authService.loginOAuth2Success(jwtToken);
     }
+
+    // Quên mật khẩu - Gửi OTP
+    @PostMapping("/forgot-password/send-otp")
+    public ResponseEntity<?> sendForgotPasswordOtp(@RequestParam String email) {
+        return authService.sendForgotPasswordOtp(email);
+    }
+
+    // Quên mật khẩu - Xác thực OTP
+    @PostMapping("/forgot-password/verify-otp")
+    public ResponseEntity<?> verifyForgotPasswordOtp(@RequestBody VerifyDTO dto) {
+        return authService.verifyForgotPasswordOtp(dto);
+    }
+
+    // Quên mật khẩu - Đổi mật khẩu
+    @PostMapping("/forgot-password/reset")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordDTO dto) {
+        return authService.resetPassword(dto);
+    }
 }
 

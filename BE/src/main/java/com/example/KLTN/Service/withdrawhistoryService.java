@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -151,6 +152,51 @@ public class withdrawhistoryService implements withdrawhistoryServiceImpl {
             return httpResponseUtil.ok("Get all withdraws success", withdraws);
         } catch (Exception e) {
             return httpResponseUtil.error("Error getting all withdraws", e);
+        }
+    }
+
+    // Lấy tất cả withdraws với pagination và search (cho admin)
+    public ResponseEntity<Apireponsi<PageResponse<withDrawHistoryEntity>>> getAllWithdrawsPaginated(
+            String search, Integer page, Integer size) {
+        try {
+            // Set defaults
+            int pageNumber = (page != null && page >= 0) ? page : 0;
+            int pageSize = (size != null && size > 0) ? size : 10;
+
+            // Tạo Pageable với sort theo id DESC
+            Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "id"));
+
+            // Normalize search string
+            String searchQuery = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+            
+            // Try to parse search as Long for ID search
+            Long searchId = null;
+            if (searchQuery != null) {
+                try {
+                    searchId = Long.parseLong(searchQuery);
+                } catch (NumberFormatException e) {
+                    // Not a number, searchId remains null
+                    searchId = null;
+                }
+            }
+
+            // Query với search
+            Page<withDrawHistoryEntity> withdrawPage = withdrawRepository.findAllWithSearch(searchQuery, searchId, pageable);
+
+            // Convert to PageResponse
+            PageResponse<withDrawHistoryEntity> pageResponse = new PageResponse<>(
+                    withdrawPage.getContent(),
+                    withdrawPage.getTotalPages(),
+                    withdrawPage.getTotalElements(),
+                    withdrawPage.getNumber(),
+                    withdrawPage.getSize(),
+                    withdrawPage.hasNext(),
+                    withdrawPage.hasPrevious()
+            );
+
+            return httpResponseUtil.ok("Lấy danh sách yêu cầu rút tiền thành công", pageResponse);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Lỗi khi lấy danh sách yêu cầu rút tiền", e);
         }
     }
     

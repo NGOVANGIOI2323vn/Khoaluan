@@ -10,6 +10,7 @@ import com.example.KLTN.Service.Impl.AuthServiceImpl;
 import com.example.KLTN.dto.Apireponsi;
 import com.example.KLTN.dto.LoginResponseDTO;
 import com.example.KLTN.dto.RegisterUserDto;
+import com.example.KLTN.dto.ResetPasswordDTO;
 import com.example.KLTN.dto.VerifyDTO;
 import com.example.KLTN.dto.authRequesDTO;
 import lombok.RequiredArgsConstructor;
@@ -151,6 +152,11 @@ public class AuthService implements AuthServiceImpl {
                 return responseUtil.notFound("User không tồn tại");
             }
             
+            // Kiểm tra tài khoản bị khóa
+            if (user.isLocked()) {
+                return responseUtil.badRequest("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.");
+            }
+            
             if (!user.isVerified()) {
                 return responseUtil.badRequest("Tài khoản chưa xác thực email");
             }
@@ -204,6 +210,11 @@ public class AuthService implements AuthServiceImpl {
                 return responseUtil.notFound("User không tồn tại");
             }
             
+            // Kiểm tra tài khoản bị khóa
+            if (user.isLocked()) {
+                return responseUtil.badRequest("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.");
+            }
+            
             if (user.getRole() == null) {
                 return responseUtil.error("Lỗi: User không có role được gán", new Exception("User role is null"));
             }
@@ -221,6 +232,94 @@ public class AuthService implements AuthServiceImpl {
             System.err.println("ERROR in loginOAuth2Success: " + e.getClass().getName() + ": " + e.getMessage());
             e.printStackTrace();
             return responseUtil.error("Lỗi khi xử lý OAuth2 login: " + e.getMessage(), e);
+        }
+    }
+
+    // ===================== FORGOT PASSWORD - SEND OTP =====================
+    public ResponseEntity<Apireponsi<String>> sendForgotPasswordOtp(String email) {
+        try {
+            UsersEntity user = userService.findByEmail(email);
+            if (user == null) {
+                // Không tiết lộ email có tồn tại hay không để bảo mật
+                return responseUtil.ok("Nếu email tồn tại, mã OTP đã được gửi đến email của bạn.");
+            }
+
+            // Kiểm tra tài khoản bị khóa
+            if (user.isLocked()) {
+                return responseUtil.badRequest("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.");
+            }
+
+            String otp = RandomOTP.generateOTP(6);
+            user.setOtp(otp);
+            user.setTimeExpired(LocalDateTime.now().plusMinutes(10)); // OTP cho quên mật khẩu có thời hạn 10 phút
+            userService.SaveUser(user);
+
+            emailUtil.sendOTP(user.getEmail(), otp);
+            return responseUtil.ok("Nếu email tồn tại, mã OTP đã được gửi đến email của bạn.");
+        } catch (Exception e) {
+            return responseUtil.error("Gửi OTP thất bại", e);
+        }
+    }
+
+    // ===================== FORGOT PASSWORD - VERIFY OTP =====================
+    public ResponseEntity<Apireponsi<String>> verifyForgotPasswordOtp(VerifyDTO dto) {
+        try {
+            UsersEntity user = userService.findByEmail(dto.getEmail());
+            if (user == null) {
+                return responseUtil.notFound("Email không tồn tại");
+            }
+
+            boolean otpValid = user.getOtp() != null
+                    && user.getOtp().equals(dto.getOtp())
+                    && user.getTimeExpired() != null
+                    && user.getTimeExpired().isAfter(LocalDateTime.now());
+
+            if (!otpValid) {
+                return responseUtil.badRequest("OTP sai hoặc đã hết hạn");
+            }
+
+            // OTP hợp lệ, nhưng chưa reset password, chỉ verify OTP
+            return responseUtil.ok("Xác nhận OTP thành công. Bạn có thể đổi mật khẩu.");
+        } catch (Exception e) {
+            return responseUtil.error("Lỗi khi xác thực OTP", e);
+        }
+    }
+
+    // ===================== RESET PASSWORD =====================
+    public ResponseEntity<Apireponsi<String>> resetPassword(ResetPasswordDTO dto) {
+        try {
+            UsersEntity user = userService.findByEmail(dto.getEmail());
+            if (user == null) {
+                return responseUtil.notFound("Email không tồn tại");
+            }
+
+            // Validate password
+            if (dto.getNewPassword() == null || dto.getNewPassword().trim().isEmpty()) {
+                return responseUtil.badRequest("Mật khẩu mới không được để trống");
+            }
+            if (dto.getNewPassword().length() < 6) {
+                return responseUtil.badRequest("Mật khẩu phải có ít nhất 6 ký tự");
+            }
+
+            // Verify OTP
+            boolean otpValid = user.getOtp() != null
+                    && user.getOtp().equals(dto.getOtp())
+                    && user.getTimeExpired() != null
+                    && user.getTimeExpired().isAfter(LocalDateTime.now());
+
+            if (!otpValid) {
+                return responseUtil.badRequest("OTP sai hoặc đã hết hạn");
+            }
+
+            // Reset password
+            user.setPassword(jwtUtil.passwordEncoder().encode(dto.getNewPassword()));
+            user.setOtp(null);
+            user.setTimeExpired(null);
+            userService.SaveUser(user);
+
+            return responseUtil.ok("Đổi mật khẩu thành công. Vui lòng đăng nhập lại.");
+        } catch (Exception e) {
+            return responseUtil.error("Lỗi khi đổi mật khẩu", e);
         }
     }
 }

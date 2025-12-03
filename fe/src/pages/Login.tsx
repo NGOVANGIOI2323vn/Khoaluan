@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { Link, useSearchParams } from 'react-router-dom'
 import { authService } from '../services/authService'
 import Header from '../components/Header'
 
 const Login = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -15,6 +17,18 @@ const Login = () => {
     username?: string
     password?: string
   }>({})
+
+  // Đọc error message từ URL parameter khi component mount
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    const messageParam = searchParams.get('message')
+    
+    if (errorParam === 'oauth2_failed' && messageParam) {
+      setError(decodeURIComponent(messageParam))
+      // Xóa query params sau khi đọc để tránh hiển thị lại khi refresh
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const validateForm = () => {
     const errors: { username?: string; password?: string } = {}
@@ -202,6 +216,15 @@ const Login = () => {
             >
               {loading ? 'Đang đăng nhập...' : 'Đăng Nhập'}
             </button>
+
+            <div className="text-right">
+              <Link
+                to="/forgot-password"
+                className="text-blue-600 hover:underline text-sm md:text-base"
+              >
+                Quên mật khẩu?
+              </Link>
+            </div>
           </form>
 
           <button

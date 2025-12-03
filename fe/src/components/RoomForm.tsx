@@ -9,21 +9,21 @@ const roomSchema = z.object({
     .string()
     .min(1, 'Số phòng là bắt buộc')
     .max(20, 'Số phòng không được quá 20 ký tự')
-    .regex(/^[A-Za-z0-9\s\-]+$/, 'Số phòng chỉ được chứa chữ cái, số, khoảng trắng và dấu gạch ngang'),
+    .regex(/^[A-Za-z0-9\s-]+$/, 'Số phòng chỉ được chứa chữ cái, số, khoảng trắng và dấu gạch ngang'),
   price: z
     .number({
-      required_error: 'Giá phòng là bắt buộc',
-      invalid_type_error: 'Giá phòng phải là số',
+      message: 'Giá phòng phải là số',
     })
     .min(10000, 'Giá phòng tối thiểu là 10,000 VND')
     .max(100000000, 'Giá phòng không được vượt quá 100 triệu VND'),
   image: z
     .instanceof(File, { message: 'Vui lòng chọn ảnh phòng' })
-    .refine((file) => file.size <= 5 * 1024 * 1024, {
+    .nullable()
+    .refine((file) => !file || file.size <= 5 * 1024 * 1024, {
       message: 'Kích thước ảnh không được vượt quá 5MB',
     })
     .refine(
-      (file) => ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type),
+      (file) => !file || ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type),
       {
         message: 'Chỉ chấp nhận file ảnh (JPEG, JPG, PNG, WEBP)',
       }
@@ -55,7 +55,7 @@ const RoomForm = ({ onSubmit, onCancel, isSubmitting = false }: RoomFormProps) =
   } = useForm<RoomFormData>({
     resolver: zodResolver(roomsFormSchema),
     defaultValues: {
-      rooms: [{ number: '', price: 0, image: null as any }],
+      rooms: [{ number: '', price: 0, image: null }],
     },
   })
 
@@ -76,7 +76,7 @@ const RoomForm = ({ onSubmit, onCancel, isSubmitting = false }: RoomFormProps) =
         <h3 className="text-lg font-bold text-gray-900">Danh sách phòng</h3>
         <button
           type="button"
-          onClick={() => append({ number: '', price: 0, image: null as any })}
+          onClick={() => append({ number: '', price: 0, image: null })}
           disabled={fields.length >= 50}
           className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -171,18 +171,21 @@ const RoomForm = ({ onSubmit, onCancel, isSubmitting = false }: RoomFormProps) =
                         }}
                         className="w-full text-sm text-gray-600"
                       />
-                      {rooms[index]?.image && rooms[index].image instanceof File && (
-                        <div className="mt-2">
-                          <img
-                            src={URL.createObjectURL(rooms[index].image)}
-                            alt="Preview"
-                            className="w-full h-20 object-cover rounded-xl"
-                          />
-                          <p className="text-xs text-green-600 mt-1">
-                            Đã chọn: {rooms[index].image.name}
-                          </p>
-                        </div>
-                      )}
+                      {(() => {
+                        const image = rooms[index]?.image
+                        return image && image instanceof File ? (
+                          <div className="mt-2">
+                            <img
+                              src={URL.createObjectURL(image)}
+                              alt="Preview"
+                              className="w-full h-20 object-cover rounded-xl"
+                            />
+                            <p className="text-xs text-green-600 mt-1">
+                              Đã chọn: {image.name}
+                            </p>
+                          </div>
+                        ) : null
+                      })()}
                     </>
                   )}
                 />

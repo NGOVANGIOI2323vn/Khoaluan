@@ -87,8 +87,12 @@ export const adminService = {
   },
 
   // Transaction Management
-  getAllTransactions: async () => {
-    const response = await api.get<ApiResponse<BookingTransaction[]>>('/admin/transactions')
+  getAllTransactions: async (search?: string, page?: number, size?: number) => {
+    const params: Record<string, string | number> = {}
+    if (search) params.search = search
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    const response = await api.get<ApiResponse<BookingTransaction[] | PageResponse<BookingTransaction>>>('/admin/transactions', { params })
     return response.data
   },
 
@@ -103,8 +107,12 @@ export const adminService = {
   },
 
   // Withdraw Management
-  getAllWithdraws: async () => {
-    const response = await api.get<ApiResponse<WithdrawRequest[]>>('/withdraws')
+  getAllWithdraws: async (search?: string, page?: number, size?: number) => {
+    const params: Record<string, string | number> = {}
+    if (search) params.search = search
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    const response = await api.get<ApiResponse<WithdrawRequest[] | PageResponse<WithdrawRequest>>>('/withdraws', { params })
     return response.data
   },
 
@@ -146,6 +154,50 @@ export const adminService = {
     const response = await api.get<ApiResponse<RevenueSummary>>('/admin/transactions/revenue/admin')
     return response.data
   },
+
+  // User Management
+  getAllUsers: async (role?: 'USER' | 'OWNER') => {
+    const params = role ? { role } : {}
+    const response = await api.get<ApiResponse<User[]>>('/admin/users', { params })
+    return response.data
+  },
+
+  getUserById: async (id: number) => {
+    const response = await api.get<ApiResponse<User>>(`/admin/users/${id}`)
+    return response.data
+  },
+
+  updateUserRole: async (id: number, role: 'USER' | 'OWNER') => {
+    const response = await api.put<ApiResponse<User>>(`/admin/users/${id}/role`, null, {
+      params: { role },
+    })
+    return response.data
+  },
+
+  toggleLockUser: async (id: number) => {
+    const response = await api.put<ApiResponse<User>>(`/admin/users/${id}/lock`)
+    return response.data
+  },
+
+  getUserStats: async () => {
+    const response = await api.get<ApiResponse<UserStats>>('/admin/users/stats')
+    return response.data
+  },
+
+  // Review Management
+  getAllReviews: async (search?: string, page?: number, size?: number) => {
+    const params: Record<string, string | number> = {}
+    if (search) params.search = search
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    const response = await api.get<ApiResponse<PageResponse<HotelReview>>>('/admin/reviews', { params })
+    return response.data
+  },
+
+  deleteReview: async (id: number) => {
+    const response = await api.delete<ApiResponse<string>>(`/admin/reviews/${id}`)
+    return response.data
+  },
 }
 
 export interface HotelRevenue {
@@ -165,5 +217,56 @@ export interface RevenueSummary {
   totalTransactions: number
   approvedTransactions: number
   hotelRevenues: HotelRevenue[]
+}
+
+export interface User {
+  id: number
+  username: string
+  email: string
+  phone: string
+  verified: boolean
+  locked: boolean
+  role: {
+    id: number
+    name: 'USER' | 'OWNER' | 'ADMIN'
+  }
+  wallet?: {
+    id: number
+    balance: number
+  }
+}
+
+export interface UserStats {
+  totalUsers: number
+  userCount: number
+  ownerCount: number
+  adminCount: number
+}
+
+export interface HotelReview {
+  id: number
+  rating: number
+  comment: string
+  createdAt: string
+  user?: {
+    id: number
+    username: string
+    email: string
+  }
+  hotel?: {
+    id: number
+    name: string
+    address: string
+  }
+}
+
+export interface PageResponse<T> {
+  content: T[]
+  totalPages: number
+  totalElements: number
+  currentPage: number
+  pageSize: number
+  hasNext: boolean
+  hasPrevious: boolean
 }
 

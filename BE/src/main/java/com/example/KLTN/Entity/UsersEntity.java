@@ -32,6 +32,10 @@ public class UsersEntity {
     private boolean verified = false;
 
     @Column(nullable = false)
+    @Builder.Default
+    private boolean locked = false;
+
+    @Column(nullable = false)
     private String password;
 
     @Column(nullable = false)

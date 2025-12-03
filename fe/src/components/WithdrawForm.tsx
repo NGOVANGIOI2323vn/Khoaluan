@@ -7,8 +7,7 @@ import FormattedNumberInput from './FormattedNumberInput'
 const withdrawSchema = z.object({
   amount: z
     .number({
-      required_error: 'Số tiền là bắt buộc',
-      invalid_type_error: 'Số tiền phải là số',
+      message: 'Số tiền phải là số',
     })
     .min(1, 'Số tiền phải lớn hơn 0')
     .refine((val) => val > 0, {
@@ -60,7 +59,6 @@ const WithdrawForm = ({
     handleSubmit,
     formState: { errors },
     setValue,
-    watch,
   } = useForm<WithdrawFormData>({
     resolver: zodResolver(withdrawSchema),
     defaultValues: {
@@ -70,22 +68,6 @@ const WithdrawForm = ({
       accountHolderName: '',
     },
   })
-
-  const amount = watch('amount')
-
-  // Add max amount validation dynamically
-  const schemaWithMax = withdrawSchema.refine(
-    (data) => {
-      if (maxAmount !== undefined) {
-        return data.amount <= maxAmount
-      }
-      return true
-    },
-    {
-      message: `Số tiền không được vượt quá ${maxAmount ? Number(maxAmount).toLocaleString('vi-VN') : ''} VND`,
-      path: ['amount'],
-    }
-  )
 
   const onFormSubmit = async (data: WithdrawFormData) => {
     await onSubmit(data)

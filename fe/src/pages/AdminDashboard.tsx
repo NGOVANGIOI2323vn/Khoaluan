@@ -1,17 +1,499 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Pie } from '@ant-design/charts'
 import { adminService } from '../services'
-import type { AdminPercent, BookingTransaction, WithdrawRequest, PendingHotel, RevenueSummary } from '../services/adminService'
+import type { AdminPercent, BookingTransaction, WithdrawRequest, PendingHotel, RevenueSummary, User, UserStats, HotelReview } from '../services/adminService'
 import { ownerService } from '../services'
 import Header from '../components/Header'
 import AppModal from '../components/AppModal'
-import { Check, X, Eye } from 'lucide-react'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { Check, X, Eye, Lock, Unlock, UserCog } from 'lucide-react'
 import { useToast } from '../hooks/useToast'
+import { useConfirm } from '../hooks/useConfirm'
+import { useDebounce } from '../hooks/useDebounce'
 import AdminPercentForm, { type AdminPercentFormData } from '../components/AdminPercentForm'
 
+// Memoized components để tránh re-render không cần thiết
+const TransactionRow = memo(({ transaction, index, onApprove }: { 
+  transaction: BookingTransaction
+  index: number
+  onApprove: (id: number) => void
+}) => (
+  <motion.tr
+    initial={{ opacity: 0, x: -20 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ delay: index * 0.05 }}
+    className="border-b hover:bg-gray-50"
+  >
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">#{transaction.id}</td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">
+      {transaction.bookingEntity?.hotel?.name || 'N/A'}
+    </td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap">
+      {transaction.amount 
+        ? (typeof transaction.amount === 'string' 
+            ? Number(transaction.amount).toLocaleString('vi-VN') 
+            : Number(transaction.amount).toLocaleString('vi-VN'))
+        : '0'} VND
+    </td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-blue-600 whitespace-nowrap">
+      {(() => {
+        const adminMount = transaction.Admin_mount ?? transaction.admin_mount
+        if (adminMount == null || adminMount === undefined) return '0'
+        const numValue = typeof adminMount === 'string' ? parseFloat(adminMount) : Number(adminMount)
+        return isNaN(numValue) ? '0' : numValue.toLocaleString('vi-VN')
+      })()} VND
+    </td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-green-600 whitespace-nowrap">
+      {(() => {
+        const userMount = transaction.User_mount ?? transaction.user_mount
+        if (userMount == null || userMount === undefined) return '0'
+        const numValue = typeof userMount === 'string' ? parseFloat(userMount) : Number(userMount)
+        return isNaN(numValue) ? '0' : numValue.toLocaleString('vi-VN')
+      })()} VND
+    </td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3">
+      <span
+        className={`px-2 py-1 rounded text-xs font-semibold ${
+          transaction.status === 'APPROVED'
+            ? 'bg-green-100 text-green-700'
+            : transaction.status === 'REJECTED'
+            ? 'bg-red-100 text-red-700'
+            : 'bg-yellow-100 text-yellow-700'
+        }`}
+      >
+        {transaction.status === 'APPROVED'
+          ? 'Đã duyệt'
+          : transaction.status === 'REJECTED'
+          ? 'Từ chối'
+          : 'Chờ duyệt'}
+      </span>
+    </td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3">
+      {transaction.status === 'PENDING' && (
+        <button
+          onClick={() => onApprove(transaction.id)}
+          className="bg-green-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-green-700 transition whitespace-nowrap"
+        >
+          Duyệt
+        </button>
+      )}
+    </td>
+  </motion.tr>
+))
+TransactionRow.displayName = 'TransactionRow'
+
+const WithdrawRow = memo(({ withdraw, index, onApprove, onReject }: { 
+  withdraw: WithdrawRequest
+  index: number
+  onApprove: (id: number) => void
+  onReject: (id: number) => void
+}) => (
+  <motion.tr
+    initial={{ opacity: 0, x: -20 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ delay: index * 0.05 }}
+    className="border-b hover:bg-gray-50"
+  >
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">#{withdraw.id}</td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap">
+      {Number(withdraw.amount).toLocaleString('vi-VN')} VND
+    </td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">{withdraw.bankName}</td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">{withdraw.accountNumber}</td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">{withdraw.accountHolderName}</td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm whitespace-nowrap">
+      {new Date(withdraw.create_AT).toLocaleDateString('vi-VN')}
+    </td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3">
+      <span
+        className={`px-2 py-1 rounded text-xs font-semibold ${
+          withdraw.status === 'resolved'
+            ? 'bg-green-100 text-green-700'
+            : withdraw.status === 'refuse'
+            ? 'bg-red-100 text-red-700'
+            : 'bg-yellow-100 text-yellow-700'
+        }`}
+      >
+        {withdraw.status === 'resolved'
+          ? 'Đã duyệt'
+          : withdraw.status === 'refuse'
+          ? 'Từ chối'
+          : 'Chờ duyệt'}
+      </span>
+    </td>
+    <td className="px-2 sm:px-4 py-2 sm:py-3">
+      {withdraw.status === 'pending' && (
+        <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
+          <button
+            onClick={() => onApprove(withdraw.id)}
+            className="bg-green-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-green-700 transition whitespace-nowrap"
+          >
+            Duyệt
+          </button>
+          <button
+            onClick={() => onReject(withdraw.id)}
+            className="bg-red-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-red-700 transition whitespace-nowrap"
+          >
+            Từ chối
+          </button>
+        </div>
+      )}
+    </td>
+  </motion.tr>
+))
+WithdrawRow.displayName = 'WithdrawRow'
+
+// Memoized Stats Cards component
+const StatsCards = memo(({ stats }: { stats: Array<{ label: string; value: string | number; icon: string; gradient: string }> }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    {stats.map((stat, index) => (
+      <motion.div
+        key={stat.label}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.1 }}
+        whileHover={{ scale: 1.05, y: -5 }}
+        className={`bg-gradient-to-br ${stat.gradient} rounded-3xl p-6 text-white shadow-xl`}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-4xl">{stat.icon}</span>
+        </div>
+        <div className="text-4xl font-bold mb-2">{stat.value}</div>
+        <div className="text-base opacity-95 font-medium">{stat.label}</div>
+      </motion.div>
+    ))}
+  </div>
+))
+StatsCards.displayName = 'StatsCards'
+
+// Memoized Tabs component
+const TabsNavigation = memo(({ 
+  activeTab, 
+  setActiveTab, 
+  pendingHotelsCount 
+}: { 
+  activeTab: string
+  setActiveTab: (tab: 'overview' | 'hotels' | 'transactions' | 'withdraws' | 'settings' | 'revenue' | 'users' | 'reviews') => void
+  pendingHotelsCount: number
+}) => {
+  const tabs = useMemo(() => [
+    { id: 'overview', label: 'Tổng quan', icon: '📊' },
+    { id: 'hotels', label: 'Khách sạn', icon: '🏨' },
+    { id: 'transactions', label: 'Giao dịch', icon: '💳' },
+    { id: 'withdraws', label: 'Yêu cầu rút tiền', icon: '💸' },
+    { id: 'revenue', label: 'Doanh thu', icon: '💰' },
+    { id: 'users', label: 'Tài khoản', icon: '👥' },
+    { id: 'reviews', label: 'Bình luận', icon: '💬' },
+    { id: 'settings', label: 'Cài đặt', icon: '⚙️' },
+  ], [])
+
+  return (
+    <div className="flex border-b overflow-x-auto scrollbar-hide">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => setActiveTab(tab.id as 'overview' | 'hotels' | 'transactions' | 'withdraws' | 'settings' | 'revenue' | 'users' | 'reviews')}
+          className={`flex items-center gap-2 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 whitespace-nowrap transition flex-shrink-0 ${
+            activeTab === tab.id
+              ? 'border-b-2 border-blue-600 text-blue-600 font-semibold bg-blue-50'
+              : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+          }`}
+        >
+          <span className="text-base sm:text-lg">{tab.icon}</span>
+          <span className="text-xs sm:text-sm md:text-base">{tab.label}</span>
+          {tab.id === 'hotels' && pendingHotelsCount > 0 && (
+            <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 sm:px-2 py-0.5">
+              {pendingHotelsCount}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+})
+TabsNavigation.displayName = 'TabsNavigation'
+
+// Memoized Transactions Table component
+const TransactionsTable = memo(({ 
+  transactions, 
+  loading, 
+  error, 
+  searchQuery, 
+  onSearchChange, 
+  onClearSearch,
+  onApprove,
+  page,
+  totalPages,
+  totalElements,
+  onPageChange
+}: {
+  transactions: BookingTransaction[]
+  loading: boolean
+  error: string
+  searchQuery: string
+  onSearchChange: (value: string) => void
+  onClearSearch: () => void
+  onApprove: (id: number) => void
+  page: number
+  totalPages: number
+  totalElements: number
+  onPageChange: (page: number) => void
+}) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="space-y-4"
+  >
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+      <h2 className="text-lg sm:text-xl md:text-2xl font-bold">Quản lý giao dịch</h2>
+      <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Tìm kiếm giao dịch, khách sạn, người dùng..."
+          className="flex-1 sm:w-48 md:w-64 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-xs sm:text-sm"
+        />
+        {searchQuery && (
+          <button
+            onClick={onClearSearch}
+            className="bg-gray-200 text-gray-700 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-300 transition text-sm flex-shrink-0"
+          >
+            ✕
+          </button>
+        )}
+        {totalElements > 0 && (
+          <span className="px-2 sm:px-3 py-2 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap">
+            {totalElements} giao dịch
+          </span>
+        )}
+      </div>
+    </div>
+    {loading ? (
+      <div className="text-center py-8">
+        <p className="text-gray-600">Đang tải...</p>
+      </div>
+    ) : error ? (
+      <div className="text-center py-8">
+        <p className="text-red-600">{error}</p>
+      </div>
+    ) : transactions.length === 0 ? (
+      <div className="text-center py-8">
+        <p className="text-gray-600">Chưa có giao dịch nào</p>
+      </div>
+    ) : (
+      <>
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <table className="w-full min-w-[800px]">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">ID</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Khách sạn</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Tổng tiền</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Admin</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Owner</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Trạng thái</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((transaction, index) => (
+                <TransactionRow
+                  key={transaction.id}
+                  transaction={transaction}
+                  index={index}
+                  onApprove={onApprove}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="text-sm text-gray-600">
+              Trang {page + 1} / {totalPages} ({totalElements} giao dịch)
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onPageChange(0)}
+                disabled={page === 0}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Đầu
+              </button>
+              <button
+                onClick={() => onPageChange(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Trước
+              </button>
+              <button
+                onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
+                disabled={page >= totalPages - 1}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Sau
+              </button>
+              <button
+                onClick={() => onPageChange(totalPages - 1)}
+                disabled={page >= totalPages - 1}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Cuối
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    )}
+  </motion.div>
+))
+TransactionsTable.displayName = 'TransactionsTable'
+
+// Memoized Withdraws Table component
+const WithdrawsTable = memo(({ 
+  withdraws, 
+  loading, 
+  error, 
+  searchQuery, 
+  onSearchChange,
+  onApprove,
+  onReject,
+  page,
+  totalPages,
+  totalElements,
+  onPageChange
+}: {
+  withdraws: WithdrawRequest[]
+  loading: boolean
+  error: string
+  searchQuery: string
+  onSearchChange: (value: string) => void
+  onApprove: (id: number) => void
+  onReject: (id: number) => void
+  page: number
+  totalPages: number
+  totalElements: number
+  onPageChange: (page: number) => void
+}) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="space-y-4"
+  >
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+      <h2 className="text-lg sm:text-xl md:text-2xl font-bold">Yêu cầu rút tiền</h2>
+      <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Tìm kiếm yêu cầu, ngân hàng, chủ TK..."
+          className="px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-xs sm:text-sm w-full sm:w-auto min-w-[200px]"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => onSearchChange('')}
+            className="bg-gray-200 text-gray-700 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-300 transition text-sm flex-shrink-0"
+          >
+            ✕
+          </button>
+        )}
+        {totalElements > 0 && (
+          <span className="px-2 sm:px-3 py-2 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap">
+            {totalElements} yêu cầu
+          </span>
+        )}
+      </div>
+    </div>
+    {loading ? (
+      <div className="text-center py-8">
+        <p className="text-gray-600">Đang tải...</p>
+      </div>
+    ) : error ? (
+      <div className="text-center py-8">
+        <p className="text-red-600">{error}</p>
+      </div>
+    ) : withdraws.length === 0 ? (
+      <div className="text-center py-8">
+        <p className="text-gray-600">Chưa có yêu cầu rút tiền nào</p>
+      </div>
+    ) : (
+      <>
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <table className="w-full min-w-[800px]">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">ID</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Số tiền</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Ngân hàng</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Số TK</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Chủ TK</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Ngày tạo</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Trạng thái</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {withdraws.map((withdraw, index) => (
+                <WithdrawRow
+                  key={withdraw.id}
+                  withdraw={withdraw}
+                  index={index}
+                  onApprove={onApprove}
+                  onReject={onReject}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="text-sm text-gray-600">
+              Trang {page + 1} / {totalPages} ({totalElements} yêu cầu)
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onPageChange(0)}
+                disabled={page === 0}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Đầu
+              </button>
+              <button
+                onClick={() => onPageChange(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Trước
+              </button>
+              <button
+                onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
+                disabled={page >= totalPages - 1}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Sau
+              </button>
+              <button
+                onClick={() => onPageChange(totalPages - 1)}
+                disabled={page >= totalPages - 1}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Cuối
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    )}
+  </motion.div>
+))
+WithdrawsTable.displayName = 'WithdrawsTable'
+
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'hotels' | 'transactions' | 'withdraws' | 'settings' | 'revenue'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'hotels' | 'transactions' | 'withdraws' | 'settings' | 'revenue' | 'users' | 'reviews'>('overview')
   const [pendingHotels, setPendingHotels] = useState<PendingHotel[]>([])
   const [selectedHotel, setSelectedHotel] = useState<PendingHotel | null>(null)
   const [transactions, setTransactions] = useState<BookingTransaction[]>([])
@@ -19,11 +501,44 @@ const AdminDashboard = () => {
   const [adminPercent, setAdminPercent] = useState<AdminPercent | null>(null)
   const [revenue, setRevenue] = useState<RevenueSummary | null>(null)
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  const [users, setUsers] = useState<User[]>([])
+  const [userStats, setUserStats] = useState<UserStats | null>(null)
+  const [userRoleFilter, setUserRoleFilter] = useState<'USER' | 'OWNER' | 'ALL'>('ALL')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [processingHotelId, setProcessingHotelId] = useState<number | null>(null)
   const [hotelSearchQuery, setHotelSearchQuery] = useState('')
+  const [processingUserId, setProcessingUserId] = useState<number | null>(null)
+  // Reviews state
+  const [reviews, setReviews] = useState<HotelReview[]>([])
+  const [reviewsPage, setReviewsPage] = useState(0)
+  const [reviewsPageSize] = useState(10)
+  const [reviewsTotalPages, setReviewsTotalPages] = useState(0)
+  const [reviewsTotalElements, setReviewsTotalElements] = useState(0)
+  const [reviewSearchQuery, setReviewSearchQuery] = useState('')
+  const [processingReviewId, setProcessingReviewId] = useState<number | null>(null)
+  // Transactions pagination state
+  const [transactionsPage, setTransactionsPage] = useState(0)
+  const [transactionsPageSize] = useState(10)
+  const [transactionsTotalPages, setTransactionsTotalPages] = useState(0)
+  const [transactionsTotalElements, setTransactionsTotalElements] = useState(0)
+  const [transactionsSearchQuery, setTransactionsSearchQuery] = useState('')
+  // Withdraws pagination state
+  const [withdrawsPage, setWithdrawsPage] = useState(0)
+  const [withdrawsPageSize] = useState(10)
+  const [withdrawsTotalPages, setWithdrawsTotalPages] = useState(0)
+  const [withdrawsTotalElements, setWithdrawsTotalElements] = useState(0)
+  const [withdrawsSearchQuery, setWithdrawsSearchQuery] = useState('')
   const { showSuccess, showError } = useToast()
+  const { confirm, close, handleConfirm, confirmState } = useConfirm()
+  // Ref để tránh multiple API calls cùng lúc
+  const isFetchingRef = useRef(false)
+  
+  // Debounce search queries
+  const debouncedHotelSearch = useDebounce(hotelSearchQuery, 500)
+  const debouncedReviewSearch = useDebounce(reviewSearchQuery, 500)
+  const debouncedTransactionSearch = useDebounce(transactionsSearchQuery, 500)
+  const debouncedWithdrawSearch = useDebounce(withdrawsSearchQuery, 500)
 
   // Fetch pending hotels ngay khi mount để hiển thị stats
   const fetchPendingHotels = useCallback(async () => {
@@ -36,12 +551,17 @@ const AdminDashboard = () => {
     }
   }, [])
 
-  // Fetch transactions ngay khi mount để hiển thị stats
+  // Fetch transactions ngay khi mount để hiển thị stats (không pagination)
   const fetchTransactions = useCallback(async () => {
     try {
       const response = await adminService.getAllTransactions()
       if (response.data) {
+        // Check if it's array or PageResponse
+        if (Array.isArray(response.data)) {
         setTransactions(response.data)
+        } else {
+          setTransactions(response.data.content || [])
+        }
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
@@ -49,11 +569,62 @@ const AdminDashboard = () => {
     }
   }, [])
 
-  // Fetch withdraws ngay khi mount để hiển thị stats
+  // Fetch transactions với pagination
+  const fetchTransactionsPaginated = useCallback(async (search?: string, page?: number, size?: number) => {
+    try {
+      const response = await adminService.getAllTransactions(search, page, size)
+      if (response.data) {
+        // Check if it's array or PageResponse
+        if (Array.isArray(response.data)) {
+          setTransactions(response.data)
+          setTransactionsTotalPages(0)
+          setTransactionsTotalElements(response.data.length)
+        } else {
+          setTransactions(response.data.content || [])
+          setTransactionsTotalPages(response.data.totalPages || 0)
+          setTransactionsTotalElements(response.data.totalElements || 0)
+        }
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      console.error('Error fetching transactions:', error)
+    }
+  }, [])
+
+  // Fetch withdraws ngay khi mount để hiển thị stats (không pagination)
   const fetchWithdraws = useCallback(async () => {
     try {
       const response = await adminService.getAllWithdraws()
-      if (response.data) setWithdraws(response.data)
+      if (response.data) {
+        // Check if it's array or PageResponse
+        if (Array.isArray(response.data)) {
+          setWithdraws(response.data)
+        } else {
+          setWithdraws(response.data.content || [])
+        }
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      console.error('Error fetching withdraws:', error)
+    }
+  }, [])
+
+  // Fetch withdraws với pagination
+  const fetchWithdrawsPaginated = useCallback(async (search?: string, page?: number, size?: number) => {
+    try {
+      const response = await adminService.getAllWithdraws(search, page, size)
+      if (response.data) {
+        // Check if it's array or PageResponse
+        if (Array.isArray(response.data)) {
+          setWithdraws(response.data)
+          setWithdrawsTotalPages(0)
+          setWithdrawsTotalElements(response.data.length)
+        } else {
+          setWithdraws(response.data.content || [])
+          setWithdrawsTotalPages(response.data.totalPages || 0)
+          setWithdrawsTotalElements(response.data.totalElements || 0)
+        }
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
       console.error('Error fetching withdraws:', error)
@@ -84,43 +655,140 @@ const AdminDashboard = () => {
     }
   }, [])
 
+  // Fetch users
+  const fetchUsers = useCallback(async (role?: 'USER' | 'OWNER') => {
+    try {
+      const response = await adminService.getAllUsers(role)
+      if (response.data) setUsers(response.data)
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      console.error('Error fetching users:', error)
+    }
+  }, [])
+
+  // Fetch user stats
+  const fetchUserStats = useCallback(async () => {
+    try {
+      const response = await adminService.getUserStats()
+      if (response.data) setUserStats(response.data)
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      console.error('Error fetching user stats:', error)
+    }
+  }, [])
+
+  // Fetch reviews
+  const fetchReviews = useCallback(async (search?: string, page?: number, size?: number) => {
+    try {
+      const response = await adminService.getAllReviews(search, page, size)
+      if (response.data) {
+        setReviews(response.data.content)
+        setReviewsTotalPages(response.data.totalPages)
+        setReviewsTotalElements(response.data.totalElements)
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      console.error('Error fetching reviews:', error)
+    }
+  }, [])
+
   // Fetch data theo tab được chọn
   const fetchData = useCallback(async () => {
+    // Tránh multiple calls cùng lúc
+    if (isFetchingRef.current) return
+    
     try {
+      isFetchingRef.current = true
       setLoading(true)
+      
       if (activeTab === 'hotels') {
-        const response = await adminService.getPendingHotels(hotelSearchQuery || undefined)
+        const response = await adminService.getPendingHotels(debouncedHotelSearch || undefined)
         if (response.data) setPendingHotels(response.data)
       } else if (activeTab === 'transactions') {
-        const response = await adminService.getAllTransactions()
-        if (response.data) setTransactions(response.data)
+        await fetchTransactionsPaginated(debouncedTransactionSearch || undefined, transactionsPage, transactionsPageSize)
       } else if (activeTab === 'withdraws') {
-        const response = await adminService.getAllWithdraws()
-        if (response.data) setWithdraws(response.data)
+        await fetchWithdrawsPaginated(debouncedWithdrawSearch || undefined, withdrawsPage, withdrawsPageSize)
       } else if (activeTab === 'settings') {
         const response = await adminService.getAdminPercent()
         if (response.data) setAdminPercent(response.data)
       } else if (activeTab === 'revenue') {
         const response = await adminService.getRevenue()
         if (response.data) setRevenue(response.data)
+      } else if (activeTab === 'users') {
+        const role = userRoleFilter === 'ALL' ? undefined : userRoleFilter
+        const response = await adminService.getAllUsers(role)
+        if (response.data) setUsers(response.data)
+      } else if (activeTab === 'reviews') {
+        await fetchReviews(debouncedReviewSearch || undefined, reviewsPage, reviewsPageSize)
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
       setError(error.response?.data?.message || 'Không thể tải dữ liệu')
     } finally {
       setLoading(false)
+      isFetchingRef.current = false
     }
-  }, [activeTab, hotelSearchQuery])
+  }, [activeTab, debouncedHotelSearch, debouncedReviewSearch, debouncedTransactionSearch, debouncedWithdrawSearch, userRoleFilter, reviewsPage, reviewsPageSize, fetchReviews, transactionsPage, transactionsPageSize, fetchTransactionsPaginated, withdrawsPage, withdrawsPageSize, fetchWithdrawsPaginated])
 
-  // Debounce search query
+  // Reset page về 0 khi debounced search query thay đổi (sau khi debounce)
+  const prevDebouncedReviewRef = useRef(debouncedReviewSearch)
+  const prevDebouncedTransactionRef = useRef(debouncedTransactionSearch)
+  const prevDebouncedWithdrawRef = useRef(debouncedWithdrawSearch)
+
+  useEffect(() => {
+    if (activeTab === 'reviews' && prevDebouncedReviewRef.current !== debouncedReviewSearch) {
+      prevDebouncedReviewRef.current = debouncedReviewSearch
+      setReviewsPage(0)
+    }
+  }, [debouncedReviewSearch, activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'transactions' && prevDebouncedTransactionRef.current !== debouncedTransactionSearch) {
+      prevDebouncedTransactionRef.current = debouncedTransactionSearch
+      setTransactionsPage(0)
+    }
+  }, [debouncedTransactionSearch, activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'withdraws' && prevDebouncedWithdrawRef.current !== debouncedWithdrawSearch) {
+      prevDebouncedWithdrawRef.current = debouncedWithdrawSearch
+      setWithdrawsPage(0)
+    }
+  }, [debouncedWithdrawSearch, activeTab])
+
+  // Fetch data khi debounced search query thay đổi (chỉ cho hotels vì không có pagination)
   useEffect(() => {
     if (activeTab === 'hotels') {
-      const timeoutId = setTimeout(() => {
-        fetchData()
-      }, 500)
-      return () => clearTimeout(timeoutId)
+      fetchData()
     }
-  }, [hotelSearchQuery, activeTab, fetchData])
+  }, [debouncedHotelSearch, activeTab, fetchData])
+
+  // Fetch data khi page thay đổi (cho reviews, transactions, withdraws)
+  // Khi search query thay đổi, page sẽ được reset về 0 và trigger fetchData ở đây
+  useEffect(() => {
+    if (activeTab === 'reviews') {
+      fetchData()
+    }
+  }, [reviewsPage, activeTab, fetchData])
+
+  useEffect(() => {
+    if (activeTab === 'transactions') {
+      fetchData()
+    }
+  }, [transactionsPage, activeTab, fetchData])
+
+  useEffect(() => {
+    if (activeTab === 'withdraws') {
+      fetchData()
+    }
+  }, [withdrawsPage, activeTab, fetchData])
+
+  // Fetch users when role filter changes
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchData()
+    }
+  }, [userRoleFilter, activeTab, fetchData])
 
   // Lắng nghe event từ Header để chuyển tab
   useEffect(() => {
@@ -149,15 +817,27 @@ const AdminDashboard = () => {
     fetchWithdraws()
     fetchAdminPercent()
     fetchWalletBalance()
-  }, [fetchPendingHotels, fetchTransactions, fetchWithdraws, fetchAdminPercent, fetchWalletBalance])
+    fetchUserStats()
+  }, [fetchPendingHotels, fetchTransactions, fetchWithdraws, fetchAdminPercent, fetchWalletBalance, fetchUserStats])
 
   // Fetch data khi tab thay đổi
+  const prevTabRef = useRef(activeTab)
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    if (prevTabRef.current !== activeTab) {
+      prevTabRef.current = activeTab
+      isFetchingRef.current = false
+      fetchData()
+    }
+  }, [activeTab, fetchData])
 
 
   const handleUpdatePercent = async (percentValue: number) => {
+    const confirmed = await confirm({
+      title: 'Xác nhận cập nhật phí admin',
+      message: `Bạn có chắc chắn muốn cập nhật phí admin thành ${(percentValue * 100).toFixed(1)}%?`,
+      type: 'warning',
+    })
+    if (!confirmed) return
     try {
       await adminService.updateAdminPercent(percentValue)
       showSuccess('Cập nhật thành công!')
@@ -172,52 +852,76 @@ const AdminDashboard = () => {
     }
   }
 
-  const handleApproveTransaction = async (id: number) => {
+  const handleApproveTransaction = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Xác nhận duyệt giao dịch',
+      message: 'Bạn có chắc chắn muốn duyệt giao dịch này?',
+      type: 'info',
+    })
+    if (!confirmed) return
     try {
       await adminService.setTransaction(id)
       showSuccess('Duyệt giao dịch thành công!')
       // Refresh transactions để cập nhật stats
       await fetchTransactions()
       if (activeTab === 'transactions') {
-      fetchData()
+        await fetchTransactionsPaginated(transactionsSearchQuery || undefined, transactionsPage, transactionsPageSize)
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
       showError(error.response?.data?.message || 'Không thể duyệt giao dịch')
     }
-  }
+  }, [confirm, showSuccess, showError, activeTab, transactionsSearchQuery, transactionsPage, transactionsPageSize, fetchTransactions, fetchTransactionsPaginated])
 
-  const handleApproveWithdraw = async (id: number) => {
+  const handleApproveWithdraw = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Xác nhận duyệt yêu cầu rút tiền',
+      message: 'Bạn có chắc chắn muốn duyệt yêu cầu rút tiền này? Tiền sẽ được chuyển đến tài khoản ngân hàng của owner.',
+      type: 'success',
+    })
+    if (!confirmed) return
     try {
       await adminService.approveWithdraw(id)
       showSuccess('Duyệt yêu cầu rút tiền thành công!')
       // Refresh withdraws và wallet balance để cập nhật stats
       await Promise.all([fetchWithdraws(), fetchWalletBalance()])
       if (activeTab === 'withdraws') {
-      fetchData()
+        await fetchWithdrawsPaginated(withdrawsSearchQuery || undefined, withdrawsPage, withdrawsPageSize)
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
       showError(error.response?.data?.message || 'Không thể duyệt yêu cầu')
     }
-  }
+  }, [confirm, showSuccess, showError, activeTab, withdrawsSearchQuery, withdrawsPage, withdrawsPageSize, fetchWithdraws, fetchWalletBalance, fetchWithdrawsPaginated])
 
-  const handleRejectWithdraw = async (id: number) => {
+  const handleRejectWithdraw = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Xác nhận từ chối yêu cầu rút tiền',
+      message: 'Bạn có chắc chắn muốn từ chối yêu cầu rút tiền này? Tiền sẽ được hoàn lại vào ví của owner.',
+      type: 'warning',
+    })
+    if (!confirmed) return
     try {
       await adminService.rejectWithdraw(id)
       showSuccess('Đã từ chối yêu cầu rút tiền. Tiền đã được hoàn lại vào ví của owner.')
       // Refresh withdraws và wallet balance để cập nhật stats
       await Promise.all([fetchWithdraws(), fetchWalletBalance()])
       if (activeTab === 'withdraws') {
-      fetchData()
+        await fetchWithdrawsPaginated(withdrawsSearchQuery || undefined, withdrawsPage, withdrawsPageSize)
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
       showError(error.response?.data?.message || 'Không thể từ chối yêu cầu')
     }
-  }
+  }, [confirm, showSuccess, showError, activeTab, withdrawsSearchQuery, withdrawsPage, withdrawsPageSize, fetchWithdraws, fetchWalletBalance, fetchWithdrawsPaginated])
 
-  const handleApproveHotel = async (id: number) => {
+  const handleApproveHotel = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Xác nhận duyệt khách sạn',
+      message: 'Bạn có chắc chắn muốn duyệt khách sạn này? Khách sạn sẽ được hiển thị công khai trên hệ thống.',
+      type: 'success',
+    })
+    if (!confirmed) return
     try {
       setProcessingHotelId(id)
       await adminService.approveHotel(id)
@@ -233,9 +937,15 @@ const AdminDashboard = () => {
     } finally {
       setProcessingHotelId(null)
     }
-  }
+  }, [confirm, showSuccess, showError, activeTab, fetchPendingHotels, fetchTransactions, fetchWithdraws, fetchData])
 
-  const handleRejectHotel = async (id: number) => {
+  const handleRejectHotel = useCallback(async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Xác nhận từ chối khách sạn',
+      message: 'Bạn có chắc chắn muốn từ chối khách sạn này? Hành động này không thể hoàn tác.',
+      type: 'danger',
+    })
+    if (!confirmed) return
     try {
       setProcessingHotelId(id)
       await adminService.rejectHotel(id)
@@ -251,20 +961,124 @@ const AdminDashboard = () => {
     } finally {
       setProcessingHotelId(null)
     }
-  }
+  }, [confirm, showSuccess, showError, activeTab, fetchPendingHotels, fetchData])
 
-  const stats = [
+  const handleUpdateUserRole = useCallback(async (userId: number, newRole: 'USER' | 'OWNER') => {
+    const roleName = newRole === 'USER' ? 'Khách hàng' : 'Chủ khách sạn'
+    const confirmed = await confirm({
+      title: 'Xác nhận thay đổi role',
+      message: `Bạn có chắc chắn muốn chuyển role của người dùng này thành ${roleName}?`,
+      type: 'warning',
+    })
+    if (!confirmed) return
+    try {
+      setProcessingUserId(userId)
+      await adminService.updateUserRole(userId, newRole)
+      showSuccess('Cập nhật role thành công!')
+      // Refresh users
+      await fetchUsers(userRoleFilter === 'ALL' ? undefined : userRoleFilter)
+      await fetchUserStats()
+      if (activeTab === 'users') {
+        fetchData()
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      showError(error.response?.data?.message || 'Không thể cập nhật role')
+    } finally {
+      setProcessingUserId(null)
+    }
+  }, [confirm, showSuccess, showError, activeTab, userRoleFilter, fetchUsers, fetchUserStats, fetchData])
+
+  const handleDeleteReview = useCallback(async (reviewId: number) => {
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa bình luận',
+      message: 'Bạn có chắc chắn muốn xóa bình luận này? Hành động này không thể hoàn tác.',
+      type: 'danger',
+    })
+    if (!confirmed) return
+    try {
+      setProcessingReviewId(reviewId)
+      await adminService.deleteReview(reviewId)
+      showSuccess('Xóa bình luận thành công!')
+      await fetchReviews(reviewSearchQuery || undefined, reviewsPage, reviewsPageSize)
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      showError(error.response?.data?.message || 'Không thể xóa bình luận')
+    } finally {
+      setProcessingReviewId(null)
+    }
+  }, [confirm, showSuccess, showError, reviewSearchQuery, reviewsPage, reviewsPageSize, fetchReviews])
+
+  const handleToggleLockUser = useCallback(async (userId: number, isLocked: boolean) => {
+    const confirmed = await confirm({
+      title: isLocked ? 'Xác nhận mở khóa tài khoản' : 'Xác nhận khóa tài khoản',
+      message: isLocked 
+        ? 'Bạn có chắc chắn muốn mở khóa tài khoản này?'
+        : 'Bạn có chắc chắn muốn khóa tài khoản này? Người dùng sẽ không thể đăng nhập.',
+      type: isLocked ? 'success' : 'warning',
+    })
+    if (!confirmed) return
+    try {
+      setProcessingUserId(userId)
+      await adminService.toggleLockUser(userId)
+      showSuccess(isLocked ? 'Mở khóa tài khoản thành công!' : 'Khóa tài khoản thành công!')
+      // Refresh users
+      await fetchUsers(userRoleFilter === 'ALL' ? undefined : userRoleFilter)
+      await fetchUserStats()
+      if (activeTab === 'users') {
+        fetchData()
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      showError(error.response?.data?.message || 'Không thể khóa/mở khóa tài khoản')
+    } finally {
+      setProcessingUserId(null)
+    }
+  }, [confirm, showSuccess, showError, activeTab, userRoleFilter, fetchUsers, fetchUserStats, fetchData])
+
+  // Memoize computed values để tránh re-compute không cần thiết
+  const pendingTransactionsCount = useMemo(() => {
+    return transactions.filter(t => t.status === 'PENDING').length
+  }, [transactions])
+  
+  const approvedTransactionsCount = useMemo(() => {
+    return transactions.filter(t => t.status === 'APPROVED').length
+  }, [transactions])
+  
+  const pendingWithdrawsCount = useMemo(() => {
+    return withdraws.filter(w => w.status === 'pending').length
+  }, [withdraws])
+  
+  const resolvedWithdrawsCount = useMemo(() => {
+    return withdraws.filter(w => w.status === 'resolved').length
+  }, [withdraws])
+
+  const stats = useMemo(() => [
     { label: 'Khách sạn chờ duyệt', value: pendingHotels.length, icon: '🏨', gradient: 'from-yellow-500 to-orange-500' },
     { label: 'Tổng giao dịch', value: transactions.length, icon: '💳', gradient: 'from-blue-500 to-blue-600' },
-    { label: 'Giao dịch chờ duyệt', value: transactions.filter(t => t.status === 'PENDING').length, icon: '⏳', gradient: 'from-yellow-500 to-amber-500' },
-    { label: 'Yêu cầu rút tiền', value: withdraws.filter(w => w.status === 'pending').length, icon: '💸', gradient: 'from-purple-500 to-pink-500' },
+    { label: 'Giao dịch chờ duyệt', value: pendingTransactionsCount, icon: '⏳', gradient: 'from-yellow-500 to-amber-500' },
+    { label: 'Yêu cầu rút tiền', value: pendingWithdrawsCount, icon: '💸', gradient: 'from-purple-500 to-pink-500' },
     { 
       label: 'Số dư ví Admin', 
       value: walletBalance !== null ? `${Number(walletBalance).toLocaleString('vi-VN')} VND` : 'Đang tải...', 
       icon: '💰', 
       gradient: 'from-green-500 to-emerald-600' 
     },
-  ]
+  ], [pendingHotels.length, transactions.length, pendingTransactionsCount, pendingWithdrawsCount, walletBalance])
+
+  // Memoize pie chart data
+  const pieChartData = useMemo(() => {
+    if (!revenue) return null
+    return [
+      { type: 'Admin', value: Number(revenue.adminRevenue) },
+      { type: 'Owners', value: Number(revenue.ownerRevenue) },
+    ]
+  }, [revenue])
+
+  const hasPieChartData = useMemo(() => {
+    if (!revenue) return false
+    return Number(revenue.adminRevenue) > 0 || Number(revenue.ownerRevenue) > 0
+  }, [revenue])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -282,55 +1096,15 @@ const AdminDashboard = () => {
         </motion.div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ scale: 1.05, y: -5 }}
-              className={`bg-gradient-to-br ${stat.gradient} rounded-3xl p-6 text-white shadow-xl`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-4xl">{stat.icon}</span>
-              </div>
-              <div className="text-4xl font-bold mb-2">{stat.value}</div>
-              <div className="text-base opacity-95 font-medium">{stat.label}</div>
-            </motion.div>
-          ))}
-        </div>
+        <StatsCards stats={stats} />
 
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="flex border-b overflow-x-auto scrollbar-hide">
-              {[
-              { id: 'overview', label: 'Tổng quan', icon: '📊' },
-              { id: 'hotels', label: 'Khách sạn', icon: '🏨' },
-              { id: 'transactions', label: 'Giao dịch', icon: '💳' },
-              { id: 'withdraws', label: 'Yêu cầu rút tiền', icon: '💸' },
-              { id: 'revenue', label: 'Doanh thu', icon: '💰' },
-              { id: 'settings', label: 'Cài đặt', icon: '⚙️' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'overview' | 'hotels' | 'transactions' | 'withdraws' | 'settings' | 'revenue')}
-                className={`flex items-center gap-2 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 whitespace-nowrap transition flex-shrink-0 ${
-                  activeTab === tab.id
-                    ? 'border-b-2 border-blue-600 text-blue-600 font-semibold bg-blue-50'
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-base sm:text-lg">{tab.icon}</span>
-                <span className="text-xs sm:text-sm md:text-base">{tab.label}</span>
-                {tab.id === 'hotels' && pendingHotels.length > 0 && (
-                  <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 sm:px-2 py-0.5">
-                    {pendingHotels.length}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+          <TabsNavigation 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            pendingHotelsCount={pendingHotels.length}
+          />
 
           {/* Tab Content */}
           <div className="p-4 md:p-6">
@@ -454,10 +1228,10 @@ const AdminDashboard = () => {
                       Tổng: <span className="font-bold">{transactions.length}</span> giao dịch
                     </p>
                     <p className="text-gray-700 text-base mb-1">
-                      Chờ duyệt: <span className="font-bold text-yellow-600">{transactions.filter(t => t.status === 'PENDING').length}</span>
+                      Chờ duyệt: <span className="font-bold text-yellow-600">{pendingTransactionsCount}</span>
                     </p>
                     <p className="text-gray-700 text-base">
-                      Đã duyệt: <span className="font-bold text-green-600">{transactions.filter(t => t.status === 'APPROVED').length}</span>
+                      Đã duyệt: <span className="font-bold text-green-600">{approvedTransactionsCount}</span>
                     </p>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-2xl border border-green-200">
@@ -477,10 +1251,10 @@ const AdminDashboard = () => {
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-2xl border border-purple-200">
                     <h3 className="font-bold text-lg mb-2 text-gray-900">Yêu cầu rút tiền</h3>
                     <p className="text-gray-700 text-base mb-1">
-                      Chờ duyệt: <span className="font-bold text-yellow-600">{withdraws.filter(w => w.status === 'pending').length}</span>
+                      Chờ duyệt: <span className="font-bold text-yellow-600">{pendingWithdrawsCount}</span>
                     </p>
                     <p className="text-gray-700 text-base mb-1">
-                      Đã duyệt: <span className="font-bold text-green-600">{withdraws.filter(w => w.status === 'resolved').length}</span>
+                      Đã duyệt: <span className="font-bold text-green-600">{resolvedWithdrawsCount}</span>
                     </p>
                     <p className="text-gray-700 text-base">
                       Tổng: <span className="font-bold">{withdraws.length}</span> yêu cầu
@@ -500,207 +1274,35 @@ const AdminDashboard = () => {
             )}
 
             {activeTab === 'transactions' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-4"
-              >
-                <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-4">Quản lý giao dịch</h2>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600">Đang tải...</p>
-                  </div>
-                ) : error ? (
-                  <div className="text-center py-8">
-                    <p className="text-red-600">{error}</p>
-                  </div>
-                ) : transactions.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600">Chưa có giao dịch nào</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto -mx-4 sm:mx-0">
-                    <table className="w-full min-w-[800px]">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">ID</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Khách sạn</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Tổng tiền</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Admin</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Owner</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Trạng thái</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {transactions.map((transaction, index) => (
-                          <motion.tr
-                            key={transaction.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="border-b hover:bg-gray-50"
-                          >
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">#{transaction.id}</td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">
-                              {transaction.bookingEntity?.hotel?.name || 'N/A'}
-                            </td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap">
-                              {transaction.amount 
-                                ? (typeof transaction.amount === 'string' 
-                                    ? Number(transaction.amount).toLocaleString('vi-VN') 
-                                    : Number(transaction.amount).toLocaleString('vi-VN'))
-                                : '0'} VND
-                            </td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-blue-600 whitespace-nowrap">
-                              {(() => {
-                                // Handle cả 2 trường hợp: Admin_mount (PascalCase) và admin_mount (snake_case)
-                                const adminMount = transaction.Admin_mount ?? transaction.admin_mount
-                                if (adminMount == null || adminMount === undefined) return '0'
-                                const numValue = typeof adminMount === 'string' ? parseFloat(adminMount) : Number(adminMount)
-                                return isNaN(numValue) ? '0' : numValue.toLocaleString('vi-VN')
-                              })()} VND
-                            </td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-green-600 whitespace-nowrap">
-                              {(() => {
-                                // Handle cả 2 trường hợp: User_mount (PascalCase) và user_mount (snake_case)
-                                const userMount = transaction.User_mount ?? transaction.user_mount
-                                if (userMount == null || userMount === undefined) return '0'
-                                const numValue = typeof userMount === 'string' ? parseFloat(userMount) : Number(userMount)
-                                return isNaN(numValue) ? '0' : numValue.toLocaleString('vi-VN')
-                              })()} VND
-                            </td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3">
-                              <span
-                                className={`px-2 py-1 rounded text-xs font-semibold ${
-                                  transaction.status === 'APPROVED'
-                                    ? 'bg-green-100 text-green-700'
-                                    : transaction.status === 'REJECTED'
-                                    ? 'bg-red-100 text-red-700'
-                                    : 'bg-yellow-100 text-yellow-700'
-                                }`}
-                              >
-                                {transaction.status === 'APPROVED'
-                                  ? 'Đã duyệt'
-                                  : transaction.status === 'REJECTED'
-                                  ? 'Từ chối'
-                                  : 'Chờ duyệt'}
-                              </span>
-                            </td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3">
-                              {transaction.status === 'PENDING' && (
-                                <button
-                                  onClick={() => handleApproveTransaction(transaction.id)}
-                                  className="bg-green-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-green-700 transition whitespace-nowrap"
-                                >
-                                  Duyệt
-                                </button>
-                              )}
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </motion.div>
+              <TransactionsTable
+                transactions={transactions}
+                loading={loading}
+                error={error}
+                searchQuery={transactionsSearchQuery}
+                onSearchChange={setTransactionsSearchQuery}
+                onClearSearch={() => setTransactionsSearchQuery('')}
+                onApprove={handleApproveTransaction}
+                page={transactionsPage}
+                totalPages={transactionsTotalPages}
+                totalElements={transactionsTotalElements}
+                onPageChange={setTransactionsPage}
+              />
             )}
 
             {activeTab === 'withdraws' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-4"
-              >
-                <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-4">Yêu cầu rút tiền</h2>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600">Đang tải...</p>
-                  </div>
-                ) : error ? (
-                  <div className="text-center py-8">
-                    <p className="text-red-600">{error}</p>
-                  </div>
-                ) : withdraws.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600">Chưa có yêu cầu rút tiền nào</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto -mx-4 sm:mx-0">
-                    <table className="w-full min-w-[800px]">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">ID</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Số tiền</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Ngân hàng</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Số TK</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Chủ TK</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Ngày tạo</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Trạng thái</th>
-                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {withdraws.map((withdraw, index) => (
-                          <motion.tr
-                            key={withdraw.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="border-b hover:bg-gray-50"
-                          >
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">#{withdraw.id}</td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap">
-                              {Number(withdraw.amount).toLocaleString('vi-VN')} VND
-                            </td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">{withdraw.bankName}</td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">{withdraw.accountNumber}</td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">{withdraw.accountHolderName}</td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm whitespace-nowrap">
-                              {new Date(withdraw.create_AT).toLocaleDateString('vi-VN')}
-                            </td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3">
-                              <span
-                                className={`px-2 py-1 rounded text-xs font-semibold ${
-                                  withdraw.status === 'resolved'
-                                    ? 'bg-green-100 text-green-700'
-                                    : withdraw.status === 'refuse'
-                                    ? 'bg-red-100 text-red-700'
-                                    : 'bg-yellow-100 text-yellow-700'
-                                }`}
-                              >
-                                {withdraw.status === 'resolved'
-                                  ? 'Đã duyệt'
-                                  : withdraw.status === 'refuse'
-                                  ? 'Từ chối'
-                                  : 'Chờ duyệt'}
-                              </span>
-                            </td>
-                            <td className="px-2 sm:px-4 py-2 sm:py-3">
-                              {withdraw.status === 'pending' && (
-                                <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
-                                  <button
-                                    onClick={() => handleApproveWithdraw(withdraw.id)}
-                                    className="bg-green-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-green-700 transition whitespace-nowrap"
-                                  >
-                                    Duyệt
-                                  </button>
-                                  <button
-                                    onClick={() => handleRejectWithdraw(withdraw.id)}
-                                    className="bg-red-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-red-700 transition whitespace-nowrap"
-                                  >
-                                    Từ chối
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </motion.div>
+              <WithdrawsTable
+                withdraws={withdraws}
+                loading={loading}
+                error={error}
+                searchQuery={withdrawsSearchQuery}
+                onSearchChange={setWithdrawsSearchQuery}
+                onApprove={handleApproveWithdraw}
+                onReject={handleRejectWithdraw}
+                page={withdrawsPage}
+                totalPages={withdrawsTotalPages}
+                totalElements={withdrawsTotalElements}
+                onPageChange={setWithdrawsPage}
+              />
             )}
 
             {activeTab === 'revenue' && (
@@ -745,13 +1347,11 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Revenue Distribution Pie Chart */}
+                    {hasPieChartData && pieChartData ? (
                     <div className="bg-white rounded-xl shadow-lg p-6">
                       <h3 className="text-lg font-bold mb-4">Phân bổ doanh thu</h3>
                       <Pie
-                        data={[
-                          { type: 'Admin', value: Number(revenue.adminRevenue) },
-                          { type: 'Owners', value: Number(revenue.ownerRevenue) },
-                        ]}
+                          data={pieChartData}
                         angleField="value"
                         colorField="type"
                         radius={0.8}
@@ -759,9 +1359,19 @@ const AdminDashboard = () => {
                           type: 'outer',
                           content: '{name}: {percentage}',
                         }}
+                          interactions={[{ type: 'element-active' }]}
                         height={300}
+                          color={['#3b82f6', '#a855f7']}
                       />
                     </div>
+                    ) : (
+                      <div className="bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-bold mb-4">Phân bổ doanh thu</h3>
+                        <div className="text-center py-12 text-gray-500">
+                          <p>Chưa có dữ liệu doanh thu để hiển thị biểu đồ</p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Revenue Stats */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -836,6 +1446,339 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                     </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'users' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-6"
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold">Quản lý tài khoản</h2>
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                    <select
+                      value={userRoleFilter}
+                      onChange={(e) => setUserRoleFilter(e.target.value as 'USER' | 'OWNER' | 'ALL')}
+                      className="px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-xs sm:text-sm"
+                    >
+                      <option value="ALL">Tất cả</option>
+                      <option value="USER">Khách hàng</option>
+                      <option value="OWNER">Chủ khách sạn</option>
+                    </select>
+                    {userStats && (
+                      <span className="px-2 sm:px-3 py-2 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap">
+                        {userRoleFilter === 'ALL' ? userStats.totalUsers : 
+                         userRoleFilter === 'USER' ? userStats.userCount : userStats.ownerCount} tài khoản
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* User Stats Cards */}
+                {userStats && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-4 sm:p-6 text-white shadow-lg">
+                      <div className="text-xs sm:text-sm opacity-90 mb-2">Tổng tài khoản</div>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold">{userStats.totalUsers}</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-4 sm:p-6 text-white shadow-lg">
+                      <div className="text-xs sm:text-sm opacity-90 mb-2">Khách hàng</div>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold">{userStats.userCount}</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 sm:p-6 text-white shadow-lg">
+                      <div className="text-xs sm:text-sm opacity-90 mb-2">Chủ khách sạn</div>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold">{userStats.ownerCount}</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl p-4 sm:p-6 text-white shadow-lg">
+                      <div className="text-xs sm:text-sm opacity-90 mb-2">Admin</div>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold">{userStats.adminCount}</div>
+                    </div>
+                  </div>
+                )}
+
+                {loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600">Đang tải...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <p className="text-red-600">{error}</p>
+                  </div>
+                ) : users.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                    <div className="text-6xl mb-4">👤</div>
+                    <p className="text-gray-600 text-lg">Không có tài khoản nào</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto -mx-4 sm:mx-0">
+                    <table className="w-full min-w-[800px]">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">ID</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Tên đăng nhập</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Email</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Số điện thoại</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Loại tài khoản</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Xác thực</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Trạng thái</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.map((user, index) => (
+                          <motion.tr
+                            key={user.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="border-b hover:bg-gray-50"
+                          >
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">#{user.id}</td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold">{user.username}</td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm break-words">{user.email}</td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">{user.phone}</td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  user.role.name === 'ADMIN'
+                                    ? 'bg-red-100 text-red-700'
+                                    : user.role.name === 'OWNER'
+                                    ? 'bg-purple-100 text-purple-700'
+                                    : 'bg-blue-100 text-blue-700'
+                                }`}
+                              >
+                                {user.role.name === 'ADMIN'
+                                  ? 'Admin'
+                                  : user.role.name === 'OWNER'
+                                  ? 'Chủ khách sạn'
+                                  : 'Khách hàng'}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  user.verified
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }`}
+                              >
+                                {user.verified ? 'Đã xác thực' : 'Chưa xác thực'}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  user.locked
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}
+                              >
+                                {user.locked ? 'Đã khóa' : 'Hoạt động'}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3">
+                              {user.role.name !== 'ADMIN' && (
+                                <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
+                                  {user.role.name === 'USER' ? (
+                                    <button
+                                      onClick={() => handleUpdateUserRole(user.id, 'OWNER')}
+                                      disabled={processingUserId === user.id}
+                                      className="bg-purple-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-purple-700 transition whitespace-nowrap flex items-center justify-center gap-1 disabled:opacity-50"
+                                      title="Chuyển thành Chủ khách sạn"
+                                    >
+                                      <UserCog className="w-3 h-3" />
+                                      Chuyển Owner
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleUpdateUserRole(user.id, 'USER')}
+                                      disabled={processingUserId === user.id}
+                                      className="bg-blue-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-blue-700 transition whitespace-nowrap flex items-center justify-center gap-1 disabled:opacity-50"
+                                      title="Chuyển thành Khách hàng"
+                                    >
+                                      <UserCog className="w-3 h-3" />
+                                      Chuyển User
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleToggleLockUser(user.id, user.locked)}
+                                    disabled={processingUserId === user.id}
+                                    className={`${
+                                      user.locked
+                                        ? 'bg-green-600 hover:bg-green-700'
+                                        : 'bg-red-600 hover:bg-red-700'
+                                    } text-white px-2 sm:px-3 py-1 rounded text-xs transition whitespace-nowrap flex items-center justify-center gap-1 disabled:opacity-50`}
+                                    title={user.locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                                  >
+                                    {user.locked ? (
+                                      <>
+                                        <Unlock className="w-3 h-3" />
+                                        Mở khóa
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Lock className="w-3 h-3" />
+                                        Khóa
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'reviews' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-6"
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold">Quản lý bình luận</h2>
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                    <input
+                      type="text"
+                      value={reviewSearchQuery}
+                      onChange={(e) => setReviewSearchQuery(e.target.value)}
+                      placeholder="Tìm kiếm bình luận, người dùng, khách sạn..."
+                      className="px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-xs sm:text-sm w-full sm:w-auto min-w-[200px]"
+                    />
+                    {reviewsTotalElements > 0 && (
+                      <span className="px-2 sm:px-3 py-2 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap">
+                        {reviewsTotalElements} bình luận
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600">Đang tải...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <p className="text-red-600">{error}</p>
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                    <div className="text-6xl mb-4">💬</div>
+                    <p className="text-gray-600 text-lg">Không có bình luận nào</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <table className="w-full min-w-[800px]">
+                        <thead className="bg-gray-100">
+                          <tr>
+                            <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">ID</th>
+                            <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Người dùng</th>
+                            <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Khách sạn</th>
+                            <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Đánh giá</th>
+                            <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Bình luận</th>
+                            <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Ngày tạo</th>
+                            <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reviews.map((review, index) => (
+                            <motion.tr
+                              key={review.id}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              className="border-b hover:bg-gray-50"
+                            >
+                              <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">#{review.id}</td>
+                              <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
+                                <div className="font-semibold">{review.user?.username || 'N/A'}</div>
+                                <div className="text-gray-500 text-xs">{review.user?.email || ''}</div>
+                              </td>
+                              <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
+                                <div className="font-semibold">{review.hotel?.name || 'N/A'}</div>
+                                <div className="text-gray-500 text-xs">{review.hotel?.address || ''}</div>
+                              </td>
+                              <td className="px-2 sm:px-4 py-2 sm:py-3">
+                                <div className="flex items-center gap-1">
+                                  {[...Array(5)].map((_, i) => (
+                                    <span key={i} className={i < review.rating ? 'text-yellow-400' : 'text-gray-300'}>
+                                      ⭐
+                                    </span>
+                                  ))}
+                                  <span className="ml-1 text-xs text-gray-600">({review.rating})</span>
+                                </div>
+                              </td>
+                              <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm max-w-xs break-words">
+                                {review.comment || 'Không có bình luận'}
+                              </td>
+                              <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
+                                {review.createdAt ? new Date(review.createdAt).toLocaleDateString('vi-VN') : 'N/A'}
+                              </td>
+                              <td className="px-2 sm:px-4 py-2 sm:py-3">
+                                <button
+                                  onClick={() => handleDeleteReview(review.id)}
+                                  disabled={processingReviewId === review.id}
+                                  className="bg-red-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-red-700 transition whitespace-nowrap flex items-center justify-center gap-1 disabled:opacity-50"
+                                  title="Xóa bình luận"
+                                >
+                                  <X className="w-3 h-3" />
+                                  Xóa
+                                </button>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {reviewsTotalPages > 1 && (
+                      <div className="flex items-center justify-between mt-6">
+                        <div className="text-sm text-gray-600">
+                          Trang {reviewsPage + 1} / {reviewsTotalPages} ({reviewsTotalElements} bình luận)
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setReviewsPage(0)}
+                            disabled={reviewsPage === 0}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                          >
+                            Đầu
+                          </button>
+                          <button
+                            onClick={() => setReviewsPage((prev) => Math.max(0, prev - 1))}
+                            disabled={reviewsPage === 0}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                          >
+                            Trước
+                          </button>
+                          <button
+                            onClick={() => setReviewsPage((prev) => Math.min(reviewsTotalPages - 1, prev + 1))}
+                            disabled={reviewsPage >= reviewsTotalPages - 1}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                          >
+                            Sau
+                          </button>
+                          <button
+                            onClick={() => setReviewsPage(reviewsTotalPages - 1)}
+                            disabled={reviewsPage >= reviewsTotalPages - 1}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                          >
+                            Cuối
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </motion.div>
@@ -947,6 +1890,18 @@ const AdminDashboard = () => {
           </div>
         )}
       </AppModal>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        onClose={close}
+        onConfirm={handleConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        type={confirmState.type}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+      />
     </div>
   )
 }

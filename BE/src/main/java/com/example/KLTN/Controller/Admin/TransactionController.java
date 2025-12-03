@@ -25,8 +25,16 @@ public class TransactionController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Apireponsi<List<Booking_transactionsEntity>>> getAllTransactions() {
-        return booking_transactionsService.findAllBooking_transactionsById();
+    public ResponseEntity<?> getAllTransactions(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        // Nếu không có page/size, trả về tất cả (backward compatibility)
+        if (page == null && size == null) {
+            return booking_transactionsService.findAllBooking_transactionsById();
+        }
+        // Nếu có page/size, trả về phân trang
+        return booking_transactionsService.getAllTransactionsPaginated(search, page, size);
     }
 
     @GetMapping("/{id}")
