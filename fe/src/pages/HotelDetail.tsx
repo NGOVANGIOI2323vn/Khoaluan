@@ -236,7 +236,14 @@ const HotelDetail = () => {
           </button>
           <div className="ml-auto">
             <button
-              onClick={() => navigate(`/booking/${id}`)}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  showError('Vui lòng đăng nhập để đặt phòng')
+                  navigate('/login')
+                  return
+                }
+                navigate(`/booking/${id}`)
+              }}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 md:px-6 py-2 md:py-2.5 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition shadow-lg font-semibold text-sm md:text-base whitespace-nowrap"
             >
               Chọn phòng
@@ -321,6 +328,12 @@ const HotelDetail = () => {
                 <div className="space-y-2">
                   <button
                     onClick={() => {
+                      if (!isAuthenticated) {
+                        showError('Vui lòng đăng nhập để đặt phòng')
+                        navigate('/login')
+                        return
+                      }
+                      
                       // Lấy dates từ Header filter nếu có
                       const urlParams = new URLSearchParams(window.location.search)
                       const checkIn = urlParams.get('checkIn') || new Date().toISOString().split('T')[0]

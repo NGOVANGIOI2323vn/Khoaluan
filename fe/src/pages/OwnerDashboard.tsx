@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Column } from '@ant-design/charts'
+import { Trash2 } from 'lucide-react'
 import { hotelService, ownerService } from '../services'
 import { bookingService } from '../services/bookingService'
 import type { Hotel, Room } from '../services/hotelService'
@@ -535,6 +536,28 @@ const OwnerDashboard = () => {
     }
   }
 
+  const handleDeleteRoom = async (roomId: number) => {
+    const confirmed = await confirm({
+      title: 'Xác nhận xóa phòng',
+      message: 'Bạn có chắc chắn muốn xóa phòng này? Hành động này không thể hoàn tác.',
+      type: 'danger',
+    })
+    if (!confirmed) return
+    try {
+      await ownerService.deleteRoom(roomId)
+      showSuccess('Xóa phòng thành công!')
+      // Cập nhật state trực tiếp để tránh loading
+      setRooms(prev => prev.filter(room => room.id !== roomId))
+      if (selectedRoom?.id === roomId) {
+        setSelectedRoom(null)
+        setRoomBookings([])
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      showError(error.response?.data?.message || 'Không thể xóa phòng. Vui lòng thử lại sau.')
+    }
+  }
+
 
   // Helper function để kiểm tra ngày có bị booked không
   const isDateBooked = (date: Date, bookings: Booking[]): boolean => {
@@ -773,45 +796,60 @@ const OwnerDashboard = () => {
                 ) : (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {rooms.map((room) => (
-                      <motion.button
+                      <motion.div
                         key={room.id}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setSelectedRoom(room)}
-                        className={`w-full text-left p-3 rounded-lg transition ${
+                        className={`w-full p-3 rounded-lg transition ${
                           selectedRoom?.id === room.id
                             ? 'bg-green-100 border-2 border-green-500'
                             : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="font-semibold text-sm">Phòng {room.Number}</div>
-                            <div className="text-xs text-gray-600 mt-1">{room.type}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs font-semibold text-blue-600">
-                              {room.price?.toLocaleString('vi-VN')} VND
+                        <button
+                          onClick={() => setSelectedRoom(room)}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <div className="font-semibold text-sm">Phòng {room.Number}</div>
+                              <div className="text-xs text-gray-600 mt-1">{room.type}</div>
                             </div>
-                            <div className={`text-xs mt-1 px-2 py-0.5 rounded ${
-                              room.status === 'AVAILABLE' 
-                                ? 'bg-green-100 text-green-700'
-                                : room.status === 'BOOKED'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {room.status === 'AVAILABLE' ? 'Trống' : room.status === 'BOOKED' ? 'Đã đặt' : 'Bảo trì'}
+                            <div className="text-right">
+                              <div className="text-xs font-semibold text-blue-600">
+                                {room.price?.toLocaleString('vi-VN')} VND
+                              </div>
+                              <div className={`text-xs mt-1 px-2 py-0.5 rounded ${
+                                room.status === 'AVAILABLE' 
+                                  ? 'bg-green-100 text-green-700'
+                                  : room.status === 'BOOKED'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {room.status === 'AVAILABLE' ? 'Trống' : room.status === 'BOOKED' ? 'Đã đặt' : 'Bảo trì'}
+                              </div>
                             </div>
                           </div>
+                          {room.image && (
+                            <img
+                              src={room.image}
+                              alt={`Room ${room.Number}`}
+                              className="w-full h-28 object-cover rounded-lg mt-2"
+                            />
+                          )}
+                        </button>
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteRoom(room.id)
+                            }}
+                            className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-all flex items-center gap-1 text-xs"
+                            aria-label="Delete room"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Xóa
+                          </button>
                         </div>
-                        {room.image && (
-                          <img
-                            src={room.image}
-                            alt={`Room ${room.Number}`}
-                            className="w-full h-28 object-cover rounded-lg mt-2"
-                          />
-                        )}
-                      </motion.button>
+                      </motion.div>
                     ))}
                   </div>
                 )}

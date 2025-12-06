@@ -22,6 +22,13 @@ public interface Booking_transactionsRepository extends JpaRepository<Booking_tr
            "WHERE h.owner.id = :ownerId")
     List<Booking_transactionsEntity> findByOwnerId(@Param("ownerId") Long ownerId);
     
+    // Lấy transactions của owner với pagination
+    @Query("SELECT DISTINCT t FROM Booking_transactionsEntity t " +
+           "JOIN t.bookingEntity b " +
+           "JOIN b.hotel h " +
+           "WHERE h.owner.id = :ownerId")
+    Page<Booking_transactionsEntity> findByOwnerId(@Param("ownerId") Long ownerId, Pageable pageable);
+    
     // Tính tổng doanh thu của owner (từ User_mount, chỉ APPROVED)
     @Query("SELECT COALESCE(SUM(t.User_mount), 0) FROM Booking_transactionsEntity t " +
            "JOIN t.bookingEntity b " +

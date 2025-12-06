@@ -48,13 +48,29 @@ api.interceptors.response.use(
       code: error.code
     })
     
-    // Chỉ redirect về login nếu không phải đang ở trang login
-    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('username')
-      localStorage.removeItem('userId')
-      window.location.href = '/login'
+    // Chỉ redirect về login nếu không phải đang ở trang public hoặc login
+    if (error.response?.status === 401) {
+      const publicPaths = ['/login', '/register', '/verify-otp', '/forgot-password', '/reset-password', '/', '/hotels', '/hotel/', '/about', '/contact', '/oauth2/callback', '/login/oauth2/code', '/qr/']
+      const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
+      
+      // Chỉ redirect nếu đang ở trang protected (không phải public)
+      // Và chỉ redirect nếu request đó thực sự yêu cầu authentication
+      if (!isPublicPath && !window.location.pathname.includes('/login')) {
+        // Kiểm tra xem request có phải là public endpoint không
+        const publicEndpoints = ['/api/hotels', '/api/info', '/api/auth', '/api/geocoding', '/api/chat', '/api/vnpay/return']
+        const isPublicEndpoint = error.config?.url && publicEndpoints.some(endpoint => error.config.url.includes(endpoint))
+        
+        // Chỉ redirect nếu không phải public endpoint
+        if (!isPublicEndpoint) {
+          localStorage.removeItem('token')
+          localStorage.removeItem('userRole')
+          localStorage.removeItem('username')
+          localStorage.removeItem('userId')
+          window.location.href = '/login'
+        }
+      }
+      // Nếu đang ở trang public, không làm gì cả
+      // User vẫn có thể xem trang public ngay cả khi token hết hạn
     }
     return Promise.reject(error)
   }

@@ -133,6 +133,15 @@ export const adminService = {
     return response.data
   },
 
+  getPendingHotelsPaginated: async (search?: string, page?: number, size?: number) => {
+    const params: Record<string, string | number> = {}
+    if (search) params.search = search
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    const response = await api.get<ApiResponse<PageResponse<PendingHotel>>>('/admin/hotels/pending/paginated', { params })
+    return response.data
+  },
+
   approveHotel: async (id: number) => {
     const response = await api.put<ApiResponse<PendingHotel>>(`/admin/hotels/${id}/approve`)
     return response.data
@@ -149,6 +158,69 @@ export const adminService = {
     return response.data
   },
 
+  getAllHotelsPaginated: async (search?: string, page?: number, size?: number) => {
+    const params: Record<string, string | number> = {}
+    if (search) params.search = search
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    const response = await api.get<ApiResponse<PageResponse<PendingHotel>>>('/admin/hotels/paginated', { params })
+    return response.data
+  },
+
+  getHotelById: async (id: number) => {
+    const response = await api.get<ApiResponse<PendingHotel>>(`/admin/hotels/${id}`)
+    return response.data
+  },
+
+  createHotel: async (hotelData: CreateHotelData, hotelImageUrls?: string[], roomsImageUrls?: string[], ownerId?: number) => {
+    // If using Cloudinary URLs, send as JSON string in FormData
+    if (hotelImageUrls && hotelImageUrls.length > 0 && roomsImageUrls) {
+      const dataWithUrls = {
+        ...hotelData,
+        imageUrls: hotelImageUrls,
+        rooms: hotelData.rooms.map((room, index) => ({
+          ...room,
+          imageUrl: roomsImageUrls[index],
+        })),
+      }
+      const formData = new FormData()
+      const jsonBlob = new Blob([JSON.stringify(dataWithUrls)], { type: 'application/json' })
+      formData.append('hotel', jsonBlob, 'hotel.json')
+      if (ownerId) {
+        formData.append('ownerId', ownerId.toString())
+      }
+      const response = await api.post<ApiResponse<PendingHotel>>('/admin/hotels', formData)
+      return response.data
+    }
+    // Fallback to file upload (for backward compatibility)
+    const formData = new FormData()
+    const jsonBlob = new Blob([JSON.stringify(hotelData)], { type: 'application/json' })
+    formData.append('hotel', jsonBlob, 'hotel.json')
+    if (ownerId) {
+      formData.append('ownerId', ownerId.toString())
+    }
+    const response = await api.post<ApiResponse<PendingHotel>>('/admin/hotels', formData)
+    return response.data
+  },
+
+  updateHotel: async (id: number, hotelData: UpdateHotelData, hotelImageUrls?: string[], ownerId?: number) => {
+    const formData = new FormData()
+    const dataWithUrls = hotelImageUrls && hotelImageUrls.length > 0 
+      ? { ...hotelData, imageUrls: hotelImageUrls } 
+      : hotelData
+    formData.append('hotel', JSON.stringify(dataWithUrls))
+    if (ownerId) {
+      formData.append('ownerId', ownerId.toString())
+    }
+    const response = await api.put<ApiResponse<PendingHotel>>(`/admin/hotels/${id}`, formData)
+    return response.data
+  },
+
+  deleteHotel: async (id: number) => {
+    const response = await api.delete<ApiResponse<PendingHotel>>(`/admin/hotels/${id}`)
+    return response.data
+  },
+
   // Revenue Management
   getRevenue: async () => {
     const response = await api.get<ApiResponse<RevenueSummary>>('/admin/transactions/revenue/admin')
@@ -159,6 +231,15 @@ export const adminService = {
   getAllUsers: async (role?: 'USER' | 'OWNER') => {
     const params = role ? { role } : {}
     const response = await api.get<ApiResponse<User[]>>('/admin/users', { params })
+    return response.data
+  },
+
+  getAllUsersPaginated: async (role?: 'USER' | 'OWNER', page?: number, size?: number) => {
+    const params: Record<string, string | number> = {}
+    if (role) params.role = role
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    const response = await api.get<ApiResponse<PageResponse<User>>>('/admin/users/paginated', { params })
     return response.data
   },
 
@@ -268,5 +349,30 @@ export interface PageResponse<T> {
   pageSize: number
   hasNext: boolean
   hasPrevious: boolean
+}
+
+export interface CreateHotelRoom {
+  number: string
+  price: number
+  imageUrl?: string
+}
+
+export interface CreateHotelData {
+  name: string
+  address: string
+  phone: string
+  description: string
+  imageUrl?: string
+  imageUrls?: string[]
+  rooms: CreateHotelRoom[]
+}
+
+export interface UpdateHotelData {
+  name?: string
+  address?: string
+  phone?: string
+  description?: string
+  imageUrl?: string
+  imageUrls?: string[]
 }
 

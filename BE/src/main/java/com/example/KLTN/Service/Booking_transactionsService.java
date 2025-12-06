@@ -232,6 +232,42 @@ public class Booking_transactionsService implements Booking_transactionsServiceI
             return httpResponseUtil.error("Error getting my transactions", e);
         }
     }
+
+    // Lấy transactions của owner với pagination
+    public ResponseEntity<Apireponsi<com.example.KLTN.dto.PageResponse<Booking_transactionsEntity>>> getMyTransactionsPaginated(Integer page, Integer size) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+                return httpResponseUtil.badRequest("User not authenticated");
+            }
+            
+            String username = auth.getName();
+            UsersEntity owner = userService.FindByUsername(username);
+            if (owner == null) {
+                return httpResponseUtil.notFound("Owner not found");
+            }
+            
+            int pageNumber = (page != null && page >= 0) ? page : 0;
+            int pageSize = (size != null && size > 0) ? size : 10;
+            Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "id"));
+            
+            Page<Booking_transactionsEntity> transactionPage = booking_transactionsRepository.findByOwnerId(owner.getId(), pageable);
+            
+            com.example.KLTN.dto.PageResponse<Booking_transactionsEntity> pageResponse = new com.example.KLTN.dto.PageResponse<>(
+                transactionPage.getContent(),
+                transactionPage.getTotalPages(),
+                transactionPage.getTotalElements(),
+                transactionPage.getNumber(),
+                transactionPage.getSize(),
+                transactionPage.hasNext(),
+                transactionPage.hasPrevious()
+            );
+            
+            return httpResponseUtil.ok("Get my transactions success", pageResponse);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error getting my transactions", e);
+        }
+    }
     
     // Lấy doanh thu của owner (theo từng hotel)
     public ResponseEntity<Apireponsi<RevenueSummaryDTO>> getOwnerRevenue() {

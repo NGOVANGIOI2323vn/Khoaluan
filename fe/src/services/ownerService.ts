@@ -144,9 +144,22 @@ export const ownerService = {
     return response.data
   },
 
+  deleteRoom: async (roomId: number) => {
+    const response = await api.delete<ApiResponse<Room>>(`/rooms/${roomId}`)
+    return response.data
+  },
+
   // Get my hotels
   getMyHotels: async () => {
     const response = await api.get<ApiResponse<Hotel[]>>('/hotels/owner/my-hotels')
+    return response.data
+  },
+
+  getMyHotelsPaginated: async (page?: number, size?: number) => {
+    const params: Record<string, number> = {}
+    if (page !== undefined) params.page = page
+    if (size !== undefined) params.size = size
+    const response = await api.get<ApiResponse<PageResponse<Hotel>>>('/hotels/owner/my-hotels/paginated', { params })
     return response.data
   },
 

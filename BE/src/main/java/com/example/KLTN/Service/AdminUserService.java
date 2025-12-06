@@ -6,7 +6,12 @@ import com.example.KLTN.Entity.UsersEntity;
 import com.example.KLTN.Repository.RolesRepository;
 import com.example.KLTN.Repository.UserRepository;
 import com.example.KLTN.dto.Apireponsi;
+import com.example.KLTN.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +43,44 @@ public class AdminUserService {
             users.forEach(user -> user.setPassword(null));
             
             return httpResponseUtil.ok("Lấy danh sách users thành công", users);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Lỗi khi lấy danh sách users", e);
+        }
+    }
+
+    /**
+     * Lấy danh sách users với pagination
+     */
+    public ResponseEntity<Apireponsi<PageResponse<UsersEntity>>> getAllUsersPaginated(String roleName, Integer page, Integer size) {
+        try {
+            int pageNumber = (page != null && page >= 0) ? page : 0;
+            int pageSize = (size != null && size > 0) ? size : 10;
+            Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "id"));
+            
+            Page<UsersEntity> userPage;
+            
+            if (roleName != null && !roleName.isEmpty()) {
+                // Filter theo role
+                userPage = userRepository.findByRoleName(roleName, pageable);
+            } else {
+                // Lấy tất cả users
+                userPage = userRepository.findAll(pageable);
+            }
+            
+            // Ẩn password trong response
+            userPage.getContent().forEach(user -> user.setPassword(null));
+            
+            PageResponse<UsersEntity> pageResponse = new PageResponse<>(
+                userPage.getContent(),
+                userPage.getTotalPages(),
+                userPage.getTotalElements(),
+                userPage.getNumber(),
+                userPage.getSize(),
+                userPage.hasNext(),
+                userPage.hasPrevious()
+            );
+            
+            return httpResponseUtil.ok("Lấy danh sách users thành công", pageResponse);
         } catch (Exception e) {
             return httpResponseUtil.error("Lỗi khi lấy danh sách users", e);
         }

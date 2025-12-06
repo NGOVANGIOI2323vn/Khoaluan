@@ -22,5 +22,6 @@ public interface RoomsServiceImpl {
     ResponseEntity<Apireponsi<HotelEntity>> updateAlldiscount_percent(Long id, double discount_percent);
     ResponseEntity<Apireponsi<RoomsEntity>> updatecapacity(Long id, Integer capacity);
     ResponseEntity<Apireponsi<List<RoomsEntity>>> getRoomsByHotelId(Long hotelId);
+    ResponseEntity<Apireponsi<RoomsEntity>> softDeleteRoom(Long id);
 
 }

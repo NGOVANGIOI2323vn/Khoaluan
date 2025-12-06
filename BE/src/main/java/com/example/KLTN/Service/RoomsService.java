@@ -38,6 +38,7 @@ public class RoomsService implements RoomsServiceImpl {
     private final RoomsRepository roomsRepository;
     private final Image image;
     private final HotelService hotelService;
+    private final UserService userService;
 
     @Override
     public ResponseEntity<Apireponsi<HotelEntity>> updateAlldiscount_percent(Long id, double discount_percent) {
@@ -200,6 +201,71 @@ public class RoomsService implements RoomsServiceImpl {
             return httpResponseUtil.ok("Get rooms by hotel ID success", rooms);
         } catch (Exception e) {
             return httpResponseUtil.error("Get rooms by hotel ID error", e);
+        }
+    }
+
+    /**
+     * Lấy danh sách phòng với pagination
+     */
+    public ResponseEntity<Apireponsi<com.example.KLTN.dto.PageResponse<RoomsEntity>>> getRoomsByHotelIdPaginated(Long hotelId, Integer page, Integer size) {
+        try {
+            int pageNumber = (page != null && page >= 0) ? page : 0;
+            int pageSize = (size != null && size > 0) ? size : 10;
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                pageNumber, 
+                pageSize, 
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "number")
+            );
+            
+            org.springframework.data.domain.Page<RoomsEntity> roomPage = roomsRepository.findActiveRoomsByHotelId(hotelId, pageable);
+            
+            com.example.KLTN.dto.PageResponse<RoomsEntity> pageResponse = new com.example.KLTN.dto.PageResponse<>(
+                roomPage.getContent(),
+                roomPage.getTotalPages(),
+                roomPage.getTotalElements(),
+                roomPage.getNumber(),
+                roomPage.getSize(),
+                roomPage.hasNext(),
+                roomPage.hasPrevious()
+            );
+            
+            return httpResponseUtil.ok("Get rooms by hotel ID success", pageResponse);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Get rooms by hotel ID error", e);
+        }
+    }
+
+    @Override
+    public ResponseEntity<Apireponsi<RoomsEntity>> softDeleteRoom(Long id) {
+        try {
+            RoomsEntity room = this.findRoomById(id);
+            if (room == null) {
+                return httpResponseUtil.notFound("Room not found");
+            }
+            
+            // Kiểm tra quyền: chỉ owner của hotel mới được xóa phòng
+            org.springframework.security.core.Authentication auth = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+                return httpResponseUtil.badRequest("User not authenticated");
+            }
+            
+            String username = auth.getName();
+            com.example.KLTN.Entity.UsersEntity user = userService.FindByUsername(username);
+            if (user == null) {
+                return httpResponseUtil.notFound("User not found");
+            }
+            
+            HotelEntity hotel = room.getHotel();
+            if (hotel == null || hotel.getOwner() == null || !hotel.getOwner().getId().equals(user.getId())) {
+                return httpResponseUtil.badRequest("Bạn không có quyền xóa phòng này");
+            }
+            
+            room.setDeleted(true);
+            this.saveRooms(room);
+            return httpResponseUtil.ok("Xóa phòng thành công", room);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error deleting room", e);
         }
     }
 }

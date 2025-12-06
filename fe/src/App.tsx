@@ -23,6 +23,7 @@ import NotFound from './pages/NotFound'
 import OAuth2Callback from './pages/OAuth2Callback'
 import OAuth2CodeHandler from './pages/OAuth2CodeHandler'
 import ProtectedRoute from './components/ProtectedRoute'
+import GuestRoute from './components/GuestRoute'
 import ChatBox from './components/ChatBox'
 import { ToastProvider } from './contexts/ToastContext'
 
@@ -35,11 +36,46 @@ function App() {
         <Route path="/hotels" element={<HotelList />} />
         <Route path="/hotel/:id" element={<HotelDetail />} />
         <Route path="/booking/:id" element={<Booking />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/verify-otp" element={<VerifyOtp />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route
+          path="/login"
+          element={
+            <GuestRoute>
+              <Login />
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <GuestRoute>
+              <Register />
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/verify-otp"
+          element={
+            <GuestRoute>
+              <VerifyOtp />
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <GuestRoute>
+              <ForgotPassword />
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <GuestRoute>
+              <ResetPassword />
+            </GuestRoute>
+          }
+        />
         <Route path="/oauth2/callback" element={<OAuth2Callback />} />
         <Route path="/login/oauth2/code/google" element={<OAuth2CodeHandler />} />
         <Route

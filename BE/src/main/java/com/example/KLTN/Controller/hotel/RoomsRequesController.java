@@ -56,4 +56,9 @@ package com.example.KLTN.Controller.hotel;
                                                                       @RequestParam("capacity") Integer capacity) {
             return roomsService.updatecapacity(id, capacity);
         }
+
+        @DeleteMapping("/{id}")
+        public ResponseEntity<Apireponsi<RoomsEntity>> deleteRoom(@PathVariable("id") Long id) {
+            return roomsService.softDeleteRoom(id);
+        }
     }

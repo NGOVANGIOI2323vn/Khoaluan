@@ -27,6 +27,18 @@ public class AdminUserController {
     }
 
     /**
+     * Lấy danh sách users với pagination
+     */
+    @GetMapping("/paginated")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Apireponsi<com.example.KLTN.dto.PageResponse<UsersEntity>>> getAllUsersPaginated(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return adminUserService.getAllUsersPaginated(role, page, size);
+    }
+
+    /**
      * Lấy thông tin user theo ID
      */
     @GetMapping("/{id}")

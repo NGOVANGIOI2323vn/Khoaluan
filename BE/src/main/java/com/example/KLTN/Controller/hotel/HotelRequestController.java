@@ -158,10 +158,25 @@ public class HotelRequestController {
     public ResponseEntity<Apireponsi<List<com.example.KLTN.Entity.RoomsEntity>>> getRoomsByHotelId(@PathVariable Long id) {
         return roomsService.getRoomsByHotelId(id);
     }
+
+    @GetMapping("/{id}/rooms/paginated")
+    public ResponseEntity<Apireponsi<com.example.KLTN.dto.PageResponse<com.example.KLTN.Entity.RoomsEntity>>> getRoomsByHotelIdPaginated(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return roomsService.getRoomsByHotelIdPaginated(id, page, size);
+    }
     
     @GetMapping("/owner/my-hotels")
     public ResponseEntity<Apireponsi<List<HotelEntity>>> getMyHotels() {
         return hotelService.getMyHotels();
+    }
+
+    @GetMapping("/owner/my-hotels/paginated")
+    public ResponseEntity<Apireponsi<com.example.KLTN.dto.PageResponse<HotelEntity>>> getMyHotelsPaginated(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return hotelService.getMyHotelsPaginated(page, size);
     }
 }
 
