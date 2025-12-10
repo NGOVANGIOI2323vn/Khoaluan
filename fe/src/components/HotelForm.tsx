@@ -110,10 +110,10 @@ const HotelForm = ({
     resolver: zodResolver(hotelSchemaWithRooms),
     defaultValues: {
       ...(defaultValues || {
-        name: '',
-        address: '',
-        phone: '',
-        description: '',
+      name: '',
+      address: '',
+      phone: '',
+      description: '',
       }),
       rooms: defaultRooms,
     },

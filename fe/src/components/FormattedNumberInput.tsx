@@ -9,6 +9,8 @@ interface FormattedNumberInputProps {
   max?: number
   disabled?: boolean
   required?: boolean
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onBlur?: () => void
 }
 
 const FormattedNumberInput = ({
@@ -20,6 +22,8 @@ const FormattedNumberInput = ({
   max,
   disabled = false,
   required = false,
+  onKeyDown,
+  onBlur: onBlurProp,
 }: FormattedNumberInputProps) => {
   const [displayValue, setDisplayValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -82,6 +86,11 @@ const FormattedNumberInput = ({
     } else {
       setDisplayValue(formatNumber(finalValue))
     }
+    
+    // Call custom onBlur if provided
+    if (onBlurProp) {
+      onBlurProp()
+    }
   }
 
   const handleFocus = () => {
@@ -101,6 +110,7 @@ const FormattedNumberInput = ({
       onChange={handleChange}
       onBlur={handleBlur}
       onFocus={handleFocus}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       className={className}
       disabled={disabled}
