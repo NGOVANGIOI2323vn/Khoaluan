@@ -15,6 +15,8 @@ export interface CreateHotelData {
   imageUrl?: string // URL from Cloudinary (deprecated, use imageUrls)
   imageUrls?: string[] // List of URLs from Cloudinary
   rooms: CreateHotelRoom[]
+  latitude?: number
+  longitude?: number
 }
 
 export interface UpdateHotelData {
@@ -24,6 +26,8 @@ export interface UpdateHotelData {
   description?: string
   imageUrl?: string // URL from Cloudinary (deprecated, use imageUrls)
   imageUrls?: string[] // List of URLs from Cloudinary
+  latitude?: number
+  longitude?: number
 }
 
 export interface UpdateRoomData {

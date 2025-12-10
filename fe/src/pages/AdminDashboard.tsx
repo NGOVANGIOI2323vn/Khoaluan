@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { adminService } from '../services'
-import type { AdminPercent, BookingTransaction, WithdrawRequest, PendingHotel, RevenueSummary, User, UserStats, HotelReview } from '../services/adminService'
+import type { AdminPercent, BookingTransaction, WithdrawRequest, PendingHotel, RevenueSummary, User, UserStats, HotelReview, CreateHotelRoom } from '../services/adminService'
 import { ownerService } from '../services'
 import Header from '../components/Header'
 import AppModal from '../components/AppModal'
@@ -14,6 +14,7 @@ import AdminPercentForm, { type AdminPercentFormData } from '../components/Admin
 import HotelForm, { type HotelFormData } from '../components/HotelForm'
 import type { CreateHotelData, UpdateHotelData } from '../services/adminService'
 import cloudinaryService from '../utils/cloudinaryService'
+import { geocodingService } from '../services/geocodingService'
 
 // Memoized components để tránh re-render không cần thiết
 const TransactionRow = memo(({ transaction, index, onApprove }: { 
@@ -513,6 +514,7 @@ const AdminDashboard = () => {
   const [isHotelModalOpen, setIsHotelModalOpen] = useState(false)
   const [isEditingHotel, setIsEditingHotel] = useState(false)
   const [editingHotelId, setEditingHotelId] = useState<number | null>(null)
+  const [removedImageIds, setRemovedImageIds] = useState<number[]>([])
   const [isSubmittingHotel, setIsSubmittingHotel] = useState(false)
   const [transactions, setTransactions] = useState<BookingTransaction[]>([])
   const [withdraws, setWithdraws] = useState<WithdrawRequest[]>([])
@@ -1156,10 +1158,24 @@ const AdminDashboard = () => {
     setIsHotelModalOpen(true)
   }, [])
 
-  const handleEditHotel = useCallback((hotel: PendingHotel) => {
+  const handleEditHotel = useCallback(async (hotel: PendingHotel) => {
     setIsEditingHotel(true)
     setEditingHotelId(hotel.id)
-    setSelectedHotel(hotel)
+    setRemovedImageIds([]) // Reset removed images when opening edit modal
+    
+    // Fetch hotel detail to get rooms
+    try {
+      const response = await adminService.getHotelById(hotel.id)
+      if (response.data) {
+        setSelectedHotel(response.data)
+      } else {
+        setSelectedHotel(hotel)
+      }
+    } catch (error) {
+      console.error('Error fetching hotel detail:', error)
+      setSelectedHotel(hotel)
+    }
+    
     setIsHotelModalOpen(true)
   }, [])
 
@@ -1192,31 +1208,62 @@ const AdminDashboard = () => {
     }
   }, [confirm, showSuccess, showError, activeTab])
 
-  const handleSubmitHotel = useCallback(async (data: HotelFormData, images: File[]) => {
+  const handleSubmitHotel = useCallback(async (
+    data: HotelFormData, 
+    images: File[], 
+    rooms: Array<{ number: string; price: number; image: File | null; existingImageUrl?: string }>
+  ) => {
     try {
       setIsSubmittingHotel(true)
+      
+      // Geocode address to get latitude and longitude
+      let latitude: number | undefined
+      let longitude: number | undefined
+      try {
+        const geocodeResult = await geocodingService.geocodeAddress(data.address)
+        if (geocodeResult.status === 'OK' && geocodeResult.lat && geocodeResult.lng) {
+          latitude = geocodeResult.lat
+          longitude = geocodeResult.lng
+        } else {
+          console.warn('Geocoding failed or returned no results:', geocodeResult.error)
+        }
+      } catch (geocodeError) {
+        console.error('Geocoding error:', geocodeError)
+        // Continue without lat/lng if geocoding fails
+      }
       
       // Upload images to Cloudinary
       const hotelImageUrls: string[] = []
       const roomsImageUrls: string[] = []
       
       if (images.length > 0) {
-        // Upload hotel images (first image or all if multiple)
-        for (let i = 0; i < Math.min(images.length, 5); i++) {
+        // Upload hotel images
+        for (let i = 0; i < Math.min(images.length, 10); i++) {
           const response = await cloudinaryService.uploadImage(images[i])
           hotelImageUrls.push(response.secure_url)
         }
       }
 
-      // For rooms, we need to create room data
-      // Since HotelForm doesn't handle rooms, we'll create a simple room structure
-      const rooms = [
-        {
-          number: '101',
-          price: 500000,
-          imageUrl: hotelImageUrls[0] || '',
-        },
-      ]
+      // Upload room images (only new images, keep existing ones)
+      for (const room of rooms) {
+        if (room.image) {
+          // New image uploaded
+          const response = await cloudinaryService.uploadImage(room.image)
+          roomsImageUrls.push(response.secure_url)
+        } else if (room.existingImageUrl) {
+          // Keep existing image
+          roomsImageUrls.push(room.existingImageUrl)
+        } else {
+          roomsImageUrls.push('') // Empty string if no image
+        }
+      }
+
+      // Create room data
+      const roomsData: CreateHotelRoom[] = rooms.map((room, index) => ({
+        number: room.number,
+        price: room.price,
+        imageUrl: roomsImageUrls[index] || undefined,
+      }))
 
       const hotelData: CreateHotelData = {
         name: data.name,
@@ -1224,27 +1271,48 @@ const AdminDashboard = () => {
         phone: data.phone,
         description: data.description || '',
         imageUrls: hotelImageUrls.length > 0 ? hotelImageUrls : undefined,
-        rooms,
+        rooms: roomsData,
+        latitude: latitude,
+        longitude: longitude,
       }
 
-      if (isEditingHotel && editingHotelId) {
-        // Update hotel
+      if (isEditingHotel && editingHotelId && selectedHotel) {
+        // Update hotel - merge existing images (not removed) with new images
+        const existingImageUrls: string[] = []
+        if (selectedHotel.images && selectedHotel.images.length > 0) {
+          // Only include images that were not removed
+          selectedHotel.images
+            .filter(img => !removedImageIds.includes(img.id))
+            .forEach(img => existingImageUrls.push(img.imageUrl))
+        }
+        
+        // Combine existing images (not removed) with new images
+        const allImageUrls = [...existingImageUrls, ...hotelImageUrls]
+        
         const updateData: UpdateHotelData = {
           name: data.name,
           address: data.address,
           phone: data.phone,
           description: data.description || '',
-          imageUrls: hotelImageUrls.length > 0 ? hotelImageUrls : undefined,
+          imageUrls: allImageUrls.length > 0 ? allImageUrls : undefined,
+          latitude: latitude,
+          longitude: longitude,
         }
-        await adminService.updateHotel(editingHotelId, updateData, hotelImageUrls)
+        
+        // Note: Backend should handle geocoding on update, but we can also send lat/lng if available
+        await adminService.updateHotel(editingHotelId, updateData, allImageUrls.length > 0 ? allImageUrls : undefined)
         showSuccess('Cập nhật khách sạn thành công!')
+        setRemovedImageIds([]) // Reset removed images after successful update
       } else {
-        // Create hotel
+        // Create hotel - backend will handle geocoding, but we can also send lat/lng if available
         await adminService.createHotel(hotelData, hotelImageUrls, roomsImageUrls)
         showSuccess('Tạo khách sạn thành công!')
       }
 
       setIsHotelModalOpen(false)
+      setIsEditingHotel(false)
+      setEditingHotelId(null)
+      setSelectedHotel(null)
       if (activeTab === 'hotels') {
         fetchData()
       }
@@ -1255,7 +1323,7 @@ const AdminDashboard = () => {
     } finally {
       setIsSubmittingHotel(false)
     }
-  }, [isEditingHotel, editingHotelId, showSuccess, showError, activeTab, fetchData, fetchPendingHotels])
+  }, [isEditingHotel, editingHotelId, selectedHotel, removedImageIds, showSuccess, showError, activeTab, fetchData, fetchPendingHotels])
 
   // Memoize computed values để tránh re-compute không cần thiết
   const pendingTransactionsCount = useMemo(() => {
@@ -2238,6 +2306,7 @@ const AdminDashboard = () => {
           setIsEditingHotel(false)
           setEditingHotelId(null)
           setSelectedHotel(null)
+          setRemovedImageIds([])
         }}
         title={isEditingHotel ? 'Sửa khách sạn' : 'Tạo khách sạn mới'}
         size="lg"
@@ -2254,6 +2323,25 @@ const AdminDashboard = () => {
                 }
               : undefined
           }
+          existingImages={
+            isEditingHotel && selectedHotel && selectedHotel.images
+              ? selectedHotel.images.filter(img => !removedImageIds.includes(img.id))
+              : []
+          }
+          onRemoveExistingImage={(imageId: number) => {
+            setRemovedImageIds(prev => [...prev, imageId])
+          }}
+          defaultRooms={
+            isEditingHotel && selectedHotel && selectedHotel.rooms && selectedHotel.rooms.length > 0
+              ? selectedHotel.rooms.map(room => ({
+                  number: room.Number || room.number || '',
+                  price: room.price || 0,
+                  image: null, // Existing rooms don't have File objects
+                  existingImageUrl: room.imageUrl || room.image, // Keep existing image URL
+                }))
+              : [{ number: '', price: 0, image: null }]
+          }
+          showRooms={true}
           submitLabel={isEditingHotel ? 'Cập nhật' : 'Tạo mới'}
           isSubmitting={isSubmittingHotel}
           onCancel={() => {
@@ -2261,6 +2349,7 @@ const AdminDashboard = () => {
             setIsEditingHotel(false)
             setEditingHotelId(null)
             setSelectedHotel(null)
+            setRemovedImageIds([])
           }}
         />
       </AppModal>

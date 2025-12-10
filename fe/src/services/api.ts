@@ -62,11 +62,11 @@ api.interceptors.response.use(
         
         // Chỉ redirect nếu không phải public endpoint
         if (!isPublicEndpoint) {
-          localStorage.removeItem('token')
-          localStorage.removeItem('userRole')
-          localStorage.removeItem('username')
-          localStorage.removeItem('userId')
-          window.location.href = '/login'
+      localStorage.removeItem('token')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('username')
+      localStorage.removeItem('userId')
+      window.location.href = '/login'
         }
       }
       // Nếu đang ở trang public, không làm gì cả

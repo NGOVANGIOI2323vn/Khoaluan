@@ -86,6 +86,11 @@ public class HotelService implements HotelServiceImpl {
             hotel.setPhone(dto.getPhone());
             hotel.setStatus(HotelEntity.Status.pending);
             hotel.setDeleted(false);
+            // Set latitude and longitude if provided
+            if (dto.getLatitude() != null && dto.getLongitude() != null) {
+                hotel.setLatitude(dto.getLatitude());
+                hotel.setLongitude(dto.getLongitude());
+            }
             
             // Lưu hotel trước để có ID
             this.saveHotel(hotel);
@@ -200,6 +205,11 @@ public class HotelService implements HotelServiceImpl {
             hotel.setDescription(dto.getDescription());
             hotel.setAddress(dto.getAddress());
             hotel.setPhone(dto.getPhone());
+            // Cập nhật latitude and longitude if provided
+            if (dto.getLatitude() != null && dto.getLongitude() != null) {
+                hotel.setLatitude(dto.getLatitude());
+                hotel.setLongitude(dto.getLongitude());
+            }
             
             // Cập nhật ảnh: ưu tiên imageUrls (nhiều ảnh), sau đó imageUrl (1 ảnh), cuối cùng là file
             List<String> newImageUrls = new ArrayList<>();
@@ -982,6 +992,11 @@ public class HotelService implements HotelServiceImpl {
             hotel.setPhone(dto.getPhone());
             hotel.setStatus(HotelEntity.Status.success); // Admin tạo thì tự động approve
             hotel.setDeleted(false);
+            // Set latitude and longitude if provided
+            if (dto.getLatitude() != null && dto.getLongitude() != null) {
+                hotel.setLatitude(dto.getLatitude());
+                hotel.setLongitude(dto.getLongitude());
+            }
             
             // Lưu hotel trước để có ID
             this.saveHotel(hotel);
@@ -1076,6 +1091,11 @@ public class HotelService implements HotelServiceImpl {
             hotel.setDescription(dto.getDescription());
             hotel.setAddress(dto.getAddress());
             hotel.setPhone(dto.getPhone());
+            // Cập nhật latitude and longitude if provided
+            if (dto.getLatitude() != null && dto.getLongitude() != null) {
+                hotel.setLatitude(dto.getLatitude());
+                hotel.setLongitude(dto.getLongitude());
+            }
             
             // Cập nhật owner nếu có
             if (ownerId != null) {

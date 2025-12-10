@@ -15,6 +15,7 @@ import HotelCard from '../components/HotelCard'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import cloudinaryService from '../utils/cloudinaryService'
+import { geocodingService } from '../services/geocodingService'
 import FormattedNumberInput from '../components/FormattedNumberInput'
 import WithdrawForm, { type WithdrawFormData } from '../components/WithdrawForm'
 import RoomEditForm, { type RoomEditFormData } from '../components/RoomEditForm'
@@ -45,10 +46,6 @@ const OwnerDashboard = () => {
     description: '',
     images: [] as File[],
   })
-  type CreateHotelRoomForm = { number: string; price: string; image: File | null }
-  const [createHotelRooms, setCreateHotelRooms] = useState<CreateHotelRoomForm[]>([
-    { number: '', price: '', image: null },
-  ])
   const [createHotelSubmitting, setCreateHotelSubmitting] = useState(false)
   const [deletingHotelId, setDeletingHotelId] = useState<number | null>(null)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
@@ -378,7 +375,7 @@ const OwnerDashboard = () => {
     }
   }
 
-  const handleOpenEditHotel = (hotel: Hotel) => {
+  const handleOpenEditHotel = async (hotel: Hotel) => {
     setSelectedHotel(hotel)
     setHotelForm({
       name: hotel.name || '',
@@ -387,31 +384,23 @@ const OwnerDashboard = () => {
       description: hotel.description || '',
       images: [],
     })
+    
+    // Fetch hotel detail to get rooms
+    try {
+      const response = await hotelService.getHotelById(hotel.id)
+      if (response.data) {
+        setSelectedHotel(response.data)
+      }
+    } catch (error) {
+      console.error('Error fetching hotel detail:', error)
+      // Keep original hotel data if fetch fails
+    }
+    
     setShowEditHotelModal(true)
   }
 
   const resetCreateHotelForm = () => {
-    setCreateHotelRooms([{ number: '', price: '', image: null }])
-  }
-
-  const handleRoomFieldChange = (index: number, field: 'number' | 'price', value: string) => {
-    setCreateHotelRooms((prev) =>
-      prev.map((room, idx) => (idx === index ? { ...room, [field]: value } : room)),
-    )
-  }
-
-  const handleRoomImageChange = (index: number, file: File | null) => {
-    setCreateHotelRooms((prev) =>
-      prev.map((room, idx) => (idx === index ? { ...room, image: file } : room)),
-    )
-  }
-
-  const handleAddRoomField = () => {
-    setCreateHotelRooms((prev) => [...prev, { number: '', price: '', image: null }])
-  }
-
-  const handleRemoveRoomField = (index: number) => {
-    setCreateHotelRooms((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== index)))
+    // Reset is handled by HotelForm component
   }
 
 
@@ -807,34 +796,34 @@ const OwnerDashboard = () => {
                         <button
                           onClick={() => setSelectedRoom(room)}
                           className="w-full text-left"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <div className="font-semibold text-sm">Phòng {room.Number}</div>
-                              <div className="text-xs text-gray-600 mt-1">{room.type}</div>
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-semibold text-sm">Phòng {room.Number}</div>
+                            <div className="text-xs text-gray-600 mt-1">{room.type}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-semibold text-blue-600">
+                              {room.price?.toLocaleString('vi-VN')} VND
                             </div>
-                            <div className="text-right">
-                              <div className="text-xs font-semibold text-blue-600">
-                                {room.price?.toLocaleString('vi-VN')} VND
-                              </div>
-                              <div className={`text-xs mt-1 px-2 py-0.5 rounded ${
-                                room.status === 'AVAILABLE' 
-                                  ? 'bg-green-100 text-green-700'
-                                  : room.status === 'BOOKED'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-yellow-100 text-yellow-700'
-                              }`}>
-                                {room.status === 'AVAILABLE' ? 'Trống' : room.status === 'BOOKED' ? 'Đã đặt' : 'Bảo trì'}
-                              </div>
+                            <div className={`text-xs mt-1 px-2 py-0.5 rounded ${
+                              room.status === 'AVAILABLE' 
+                                ? 'bg-green-100 text-green-700'
+                                : room.status === 'BOOKED'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {room.status === 'AVAILABLE' ? 'Trống' : room.status === 'BOOKED' ? 'Đã đặt' : 'Bảo trì'}
                             </div>
                           </div>
-                          {room.image && (
-                            <img
-                              src={room.image}
-                              alt={`Room ${room.Number}`}
-                              className="w-full h-28 object-cover rounded-lg mt-2"
-                            />
-                          )}
+                        </div>
+                        {room.image && (
+                          <img
+                            src={room.image}
+                            alt={`Room ${room.Number}`}
+                            className="w-full h-28 object-cover rounded-lg mt-2"
+                          />
+                        )}
                         </button>
                         <div className="mt-2 flex justify-end">
                           <button
@@ -1591,29 +1580,26 @@ const OwnerDashboard = () => {
         size="xl"
       >
         <HotelForm
-          onSubmit={async (data: HotelFormData, images: File[]) => {
-            if (images.length === 0) {
-              showError('Vui lòng chọn ít nhất một ảnh cho khách sạn.')
-              return
-            }
-            if (createHotelRooms.length === 0) {
-              showError('Vui lòng thêm ít nhất một phòng cho khách sạn.')
-              return
-            }
-            const invalidRoom = createHotelRooms.some(
-              (room) =>
-                !room.number.trim() ||
-                !room.price ||
-                Number(room.price) <= 0 ||
-                Number.isNaN(Number(room.price)) ||
-                !room.image,
-            )
-            if (invalidRoom) {
-              showError('Vui lòng nhập đầy đủ thông tin (số phòng, giá) và chọn ảnh cho từng phòng.')
-              return
-            }
+          onSubmit={async (data: HotelFormData, images: File[], rooms: Array<{ number: string; price: number; image: File | null }>) => {
             try {
               setCreateHotelSubmitting(true)
+              
+              // Geocode address to get latitude and longitude
+              let latitude: number | undefined
+              let longitude: number | undefined
+              try {
+                const geocodeResult = await geocodingService.geocodeAddress(data.address)
+                if (geocodeResult.status === 'OK' && geocodeResult.lat && geocodeResult.lng) {
+                  latitude = geocodeResult.lat
+                  longitude = geocodeResult.lng
+                } else {
+                  console.warn('Geocoding failed or returned no results:', geocodeResult.error)
+                }
+              } catch (geocodeError) {
+                console.error('Geocoding error:', geocodeError)
+                // Continue without lat/lng if geocoding fails
+              }
+              
               showSuccess('Đang tải ảnh khách sạn lên Cloudinary...')
               const hotelImageUrls: string[] = []
               for (const imageFile of images) {
@@ -1622,22 +1608,30 @@ const OwnerDashboard = () => {
               }
               showSuccess('Đang tải ảnh phòng lên Cloudinary...')
               const roomImageUrls: string[] = []
-              for (const room of createHotelRooms) {
+              for (const room of rooms) {
                 if (room.image) {
                   const roomImageResult = await cloudinaryService.uploadImage(room.image)
                   roomImageUrls.push(roomImageResult.secure_url)
+                } else {
+                  roomImageUrls.push('')
                 }
               }
+              
+              const roomsData = rooms.map((room, index) => ({
+                number: room.number.trim(),
+                price: room.price,
+                imageUrl: roomImageUrls[index] || undefined,
+              }))
+              
               await ownerService.createHotel(
                 {
                   name: data.name.trim(),
                   address: data.address.trim(),
                   phone: data.phone.trim(),
                   description: data.description?.trim() || '',
-                  rooms: createHotelRooms.map((room) => ({
-                    number: room.number.trim(),
-                    price: Number(room.price),
-                  })),
+                  rooms: roomsData,
+                  latitude: latitude,
+                  longitude: longitude,
                 },
                 hotelImageUrls,
                 roomImageUrls,
@@ -1653,6 +1647,8 @@ const OwnerDashboard = () => {
               setCreateHotelSubmitting(false)
             }
           }}
+          defaultRooms={[{ number: '', price: 0, image: null }]}
+          showRooms={true}
           submitLabel="Tạo khách sạn"
           isSubmitting={createHotelSubmitting}
           onCancel={() => {
@@ -1660,77 +1656,6 @@ const OwnerDashboard = () => {
             resetCreateHotelForm()
           }}
         />
-        {/* Room Form Section - Keep existing room form logic */}
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900">Danh sách phòng</h3>
-                  <button
-                    type="button"
-                    onClick={handleAddRoomField}
-              className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition text-sm font-semibold"
-                  >
-                    + Thêm phòng
-                  </button>
-                </div>
-          <div className="space-y-4">
-                {createHotelRooms.map((room, index) => (
-              <div key={`room-${index}`} className="bg-gray-50 rounded-2xl p-4 border-2 border-gray-200">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-                      <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Số phòng</label>
-                        <input
-                          type="text"
-                          value={room.number}
-                          onChange={(e) => handleRoomFieldChange(index, 'number', e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                          required
-                        />
-                      </div>
-                      <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Giá (VND)</label>
-                        <FormattedNumberInput
-                          value={room.price}
-                          onChange={(value) => handleRoomFieldChange(index, 'price', value.toString())}
-                          placeholder="Nhập giá phòng"
-                          className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                          min={1}
-                          required
-                        />
-                      </div>
-                      <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Ảnh phòng</label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleRoomImageChange(index, e.target.files ? e.target.files[0] : null)}
-                          className="w-full text-sm text-gray-600"
-                          required
-                        />
-                        {room.image && (
-                      <div className="mt-2">
-                        <img
-                          src={URL.createObjectURL(room.image)}
-                          alt="Preview"
-                          className="w-full h-20 object-cover rounded-xl"
-                        />
-                          <p className="text-xs text-green-600 mt-1">Đã chọn: {room.image.name}</p>
-                      </div>
-                        )}
-                      </div>
-                    </div>
-                    {createHotelRooms.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRoomField(index)}
-                    className="mt-3 text-sm text-red-600 hover:text-red-700 font-medium"
-                      >
-                        Xóa phòng
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              </div>
       </AppModal>
 
       {/* Edit Hotel Modal */}
@@ -1752,10 +1677,42 @@ const OwnerDashboard = () => {
               description: hotelForm.description || selectedHotel.description || '',
             }}
             defaultImages={hotelForm.images}
-            existingImages={selectedHotel.images || []}
-            onSubmit={async (data: HotelFormData, images: File[]) => {
+            existingImages={
+              selectedHotel.images
+                ? selectedHotel.images.map(img => ({ id: img.displayOrder || 0, imageUrl: img.imageUrl }))
+                : []
+            }
+            defaultRooms={
+              selectedHotel && selectedHotel.rooms && selectedHotel.rooms.length > 0
+                ? selectedHotel.rooms.map(room => ({
+                    number: room.Number || '',
+                    price: room.price || 0,
+                    image: null,
+                    existingImageUrl: room.image,
+                  }))
+                : [{ number: '', price: 0, image: null }]
+            }
+            showRooms={true}
+            onSubmit={async (data: HotelFormData, images: File[], rooms: Array<{ number: string; price: number; image: File | null; existingImageUrl?: string }>) => {
               if (!selectedHotel) return
               try {
+                // Geocode address to get latitude and longitude
+                let latitude: number | undefined
+                let longitude: number | undefined
+                try {
+                  const geocodeResult = await geocodingService.geocodeAddress(data.address)
+                  if (geocodeResult.status === 'OK' && geocodeResult.lat && geocodeResult.lng) {
+                    latitude = geocodeResult.lat
+                    longitude = geocodeResult.lng
+                  } else {
+                    console.warn('Geocoding failed or returned no results:', geocodeResult.error)
+                  }
+                } catch (geocodeError) {
+                  console.error('Geocoding error:', geocodeError)
+                  // Continue without lat/lng if geocoding fails
+                }
+                
+                // Upload hotel images
                 let hotelImageUrls: string[] | undefined
                 if (images.length > 0) {
                   showSuccess('Đang tải ảnh lên Cloudinary...')
@@ -1765,6 +1722,22 @@ const OwnerDashboard = () => {
                     hotelImageUrls.push(imageResult.secure_url)
                   }
                 }
+                
+                // Upload room images (only new images, keep existing ones)
+                const roomsImageUrls: string[] = []
+                for (const room of rooms) {
+                  if (room.image) {
+                    // New image uploaded
+                    const response = await cloudinaryService.uploadImage(room.image)
+                    roomsImageUrls.push(response.secure_url)
+                  } else if (room.existingImageUrl) {
+                    // Keep existing image
+                    roomsImageUrls.push(room.existingImageUrl)
+                  } else {
+                    roomsImageUrls.push('')
+                  }
+                }
+                
                 await ownerService.updateHotel(
                   selectedHotel.id,
                   {
@@ -1772,6 +1745,8 @@ const OwnerDashboard = () => {
                     address: data.address,
                     phone: data.phone,
                     description: data.description || '',
+                    latitude: latitude,
+                    longitude: longitude,
                   },
                   hotelImageUrls,
                 )

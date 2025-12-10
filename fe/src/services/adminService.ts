@@ -40,6 +40,19 @@ export interface WithdrawRequest {
   update_AT?: string
 }
 
+export interface PendingHotelRoom {
+  id: number
+  Number?: string
+  number?: string
+  type?: string
+  price: number
+  capacity?: number
+  image?: string
+  imageUrl?: string
+  discountPercent?: number
+  status?: string
+}
+
 export interface PendingHotel {
   id: number
   name: string
@@ -51,6 +64,7 @@ export interface PendingHotel {
   images?: Array<{ id: number; imageUrl: string }>
   rating: number
   status: 'pending' | 'success' | 'fail'
+  rooms?: PendingHotelRoom[]
   owner?: {
     id: number
     username: string
@@ -365,6 +379,8 @@ export interface CreateHotelData {
   imageUrl?: string
   imageUrls?: string[]
   rooms: CreateHotelRoom[]
+  latitude?: number
+  longitude?: number
 }
 
 export interface UpdateHotelData {
@@ -374,5 +390,7 @@ export interface UpdateHotelData {
   description?: string
   imageUrl?: string
   imageUrls?: string[]
+  latitude?: number
+  longitude?: number
 }
 

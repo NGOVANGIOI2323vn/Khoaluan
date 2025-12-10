@@ -158,7 +158,7 @@ public class HotelRequestController {
     public ResponseEntity<Apireponsi<List<com.example.KLTN.Entity.RoomsEntity>>> getRoomsByHotelId(@PathVariable Long id) {
         return roomsService.getRoomsByHotelId(id);
     }
-
+    
     @GetMapping("/{id}/rooms/paginated")
     public ResponseEntity<Apireponsi<com.example.KLTN.dto.PageResponse<com.example.KLTN.Entity.RoomsEntity>>> getRoomsByHotelIdPaginated(
             @PathVariable Long id,

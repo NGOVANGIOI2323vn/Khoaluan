@@ -16,4 +16,6 @@ public class updateHotelDto {
     private String description;
     private String imageUrl; // URL from Cloudinary (deprecated, use imageUrls instead)
     private List<String> imageUrls; // List of URLs from Cloudinary
+    private Double latitude; // Vĩ độ
+    private Double longitude; // Kinh độ
 }
