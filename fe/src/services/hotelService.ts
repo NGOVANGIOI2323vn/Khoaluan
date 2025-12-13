@@ -17,6 +17,8 @@ export interface Hotel {
   images?: HotelImage[] // Danh sách nhiều ảnh
   rating: number
   status: string
+  locked?: boolean // Trạng thái khóa khách sạn
+  bookingCount?: number // Số lượng booking của khách sạn
   minPrice?: number // Giá thấp nhất của khách sạn
   latitude?: number // Vĩ độ
   longitude?: number // Kinh độ
@@ -37,6 +39,7 @@ export interface Room {
   capacity: number
   image: string
   discountPercent: number
+  bookingCount?: number // Số lượng booking của phòng
   hotel?: Hotel
 }
 

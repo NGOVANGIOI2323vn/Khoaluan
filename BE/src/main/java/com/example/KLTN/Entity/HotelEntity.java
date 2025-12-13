@@ -36,6 +36,8 @@ public class HotelEntity {
     private int rating;
     @Column(nullable = false)
     private boolean deleted = false;
+    @Column(nullable = false)
+    private boolean locked = false; // Trạng thái khóa khách sạn
     private Double latitude; // Vĩ độ
     private Double longitude; // Kinh độ
 
@@ -56,6 +58,10 @@ public class HotelEntity {
     @Transient
     private Double minPrice;
     
+    // Transient field để lưu số lượng booking (không lưu vào DB)
+    @Transient
+    private Long bookingCount;
+    
     public void setMinPrice(Double minPrice) {
         this.minPrice = minPrice;
     }
@@ -63,10 +69,19 @@ public class HotelEntity {
     public Double getMinPrice() {
         return minPrice;
     }
+    
+    public void setBookingCount(Long bookingCount) {
+        this.bookingCount = bookingCount;
+    }
+    
+    public Long getBookingCount() {
+        return bookingCount;
+    }
 
     @PrePersist
     public void prePersist() {
         this.deleted = false;
+        this.locked = false;
     }
 
 }

@@ -73,11 +73,16 @@ const HotelCard = ({
                   e.stopPropagation()
                   onDelete(hotel.id)
                 }}
-                disabled={isDeleting}
-                className="bg-white/90 backdrop-blur-sm p-2 rounded-full hover:bg-white transition shadow-md disabled:opacity-50"
+                disabled={isDeleting || (hotel.bookingCount !== undefined && hotel.bookingCount > 0)}
+                className={`bg-white/90 backdrop-blur-sm p-2 rounded-full transition shadow-md ${
+                  (hotel.bookingCount !== undefined && hotel.bookingCount > 0)
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-white disabled:opacity-50'
+                }`}
                 aria-label="Delete hotel"
+                title={(hotel.bookingCount !== undefined && hotel.bookingCount > 0) ? `Không thể xóa vì có ${hotel.bookingCount} đặt phòng` : 'Xóa khách sạn'}
               >
-                <Trash2 className="w-4 h-4 text-red-600" />
+                <Trash2 className={`w-4 h-4 ${(hotel.bookingCount !== undefined && hotel.bookingCount > 0) ? 'text-gray-400' : 'text-red-600'}`} />
               </button>
             )}
           </div>
@@ -88,15 +93,27 @@ const HotelCard = ({
               <Star className="w-3 h-3 sm:w-4 sm:h-4 fill-yellow-400 text-yellow-400" />
               <span className="text-sm sm:text-base font-bold text-gray-900">{hotel.rating || 0}</span>
             </div>
-            <span
-              className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 ${
-                hotel.status === 'success'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-yellow-100 text-yellow-700'
-              }`}
-            >
-              {hotel.status === 'success' ? '✓ Hoạt động' : '⏳ Chờ duyệt'}
-            </span>
+            <div className="flex flex-col items-end gap-1">
+              {hotel.locked && (
+                <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 bg-red-100 text-red-700">
+                  🔒 Đã khóa
+                </span>
+              )}
+              {hotel.bookingCount !== undefined && hotel.bookingCount > 0 && (
+                <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 bg-blue-100 text-blue-700">
+                  📋 {hotel.bookingCount} đặt phòng
+                </span>
+              )}
+              <span
+                className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 ${
+                  hotel.status === 'success'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-yellow-100 text-yellow-700'
+                }`}
+              >
+                {hotel.status === 'success' ? '✓ Hoạt động' : '⏳ Chờ duyệt'}
+              </span>
+            </div>
           </div>
           <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2 line-clamp-1 break-words">{hotel.name}</h3>
           <div className="flex items-start gap-2 mb-2 min-h-[40px]">

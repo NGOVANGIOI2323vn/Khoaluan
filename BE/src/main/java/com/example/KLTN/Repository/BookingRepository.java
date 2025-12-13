@@ -60,4 +60,14 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Long> {
            "AND b.status IN ('PENDING', 'PAID') " +
            "ORDER BY b.checkInDate ASC")
     List<BookingEntity> findByRoomId(@Param("roomId") Long roomId);
+    
+    // Query để đếm số booking của một room (chỉ tính PENDING và PAID)
+    @Query("SELECT COUNT(b) FROM BookingEntity b WHERE b.rooms.id = :roomId " +
+           "AND b.status IN ('PENDING', 'PAID')")
+    Long countBookingsByRoomId(@Param("roomId") Long roomId);
+    
+    // Query để đếm số booking của một hotel (chỉ tính PENDING và PAID)
+    @Query("SELECT COUNT(b) FROM BookingEntity b WHERE b.hotel.id = :hotelId " +
+           "AND b.status IN ('PENDING', 'PAID')")
+    Long countBookingsByHotelId(@Param("hotelId") Long hotelId);
 }

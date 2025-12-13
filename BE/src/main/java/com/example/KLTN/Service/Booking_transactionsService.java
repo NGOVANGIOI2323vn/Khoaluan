@@ -38,31 +38,9 @@ public class Booking_transactionsService implements Booking_transactionsServiceI
     @Override
     @Transactional(rollbackOn = Exception.class)
     public ResponseEntity<Apireponsi<Booking_transactionsEntity>> setSatus(Long id) {
-        try {
-            Booking_transactionsEntity transactions = this.findById(id);
-            if (transactions == null) {
-                return httpResponseUtil.notFound("transactions not found");
-            }
-            if (!transactions.getStatus().equals(Booking_transactionsEntity.Status.PENDING)) {
-                return httpResponseUtil.badRequest("Đã đuoợc xử lí ");
-            }
-
-            UsersEntity admin = userService.FindByUsername("admin");
-            if (admin == null) {
-                return httpResponseUtil.notFound("admin not found");
-            }
-            transactions.getBookingEntity().getHotel().getOwner().getWallet().
-                    setBalance(transactions.getBookingEntity().getHotel().getOwner().getWallet().getBalance().
-                            add(transactions.getUser_mount()));
-
-            admin.getWallet().setBalance(admin.getWallet().getBalance().add(transactions.getAdmin_mount()));
-            userService.SaveUser(admin);
-            this.SaveBooking_transactions(transactions);
-            transactions.setStatus(Booking_transactionsEntity.Status.APPROVED);
-            return httpResponseUtil.ok("Transactions saved successfully", transactions);
-        } catch (Exception e) {
-            return httpResponseUtil.error("Error", e);
-        }
+        // Chức năng này đã bị vô hiệu hóa vì tiền đã được tự động chia khi thanh toán
+        // Không cần duyệt transaction nữa
+        return httpResponseUtil.badRequest("Chức năng duyệt giao dịch đã bị vô hiệu hóa. Tiền đã được tự động chia khi thanh toán.");
     }
 
     private final Booking_transactionsRepository booking_transactionsRepository;
@@ -188,6 +166,7 @@ public class Booking_transactionsService implements Booking_transactionsServiceI
     }
 
     @Override
+    @Transactional(rollbackOn = Exception.class)
     public ResponseEntity<Apireponsi<Booking_transactionsEntity>> Create(BookingEntity booking) {
         try {
             BigDecimal amouth = booking.getTotalPrice();
@@ -198,14 +177,37 @@ public class Booking_transactionsService implements Booking_transactionsServiceI
             BigDecimal percentAdminBD = BigDecimal.valueOf(percentAdmin);
             BigDecimal amouthAdmin = amouth.multiply(percentAdminBD);
             BigDecimal amounthOwner = amouth.subtract(amouthAdmin);
+            
+            // Tự động chia tiền vào ví admin và owner ngay khi thanh toán
+            UsersEntity admin = userService.FindByUsername("admin");
+            if (admin == null) {
+                return httpResponseUtil.notFound("admin not found");
+            }
+            
+            // Lấy owner từ hotel
+            UsersEntity owner = booking.getHotel().getOwner();
+            if (owner == null || owner.getWallet() == null) {
+                return httpResponseUtil.notFound("owner or owner wallet not found");
+            }
+            
+            // Cộng tiền vào ví admin
+            admin.getWallet().setBalance(admin.getWallet().getBalance().add(amouthAdmin));
+            userService.SaveUser(admin);
+            
+            // Cộng tiền vào ví owner
+            owner.getWallet().setBalance(owner.getWallet().getBalance().add(amounthOwner));
+            userService.SaveUser(owner);
+            
+            // Tạo transaction với status APPROVED (đã tự động chia tiền)
             Booking_transactionsEntity transaction = new Booking_transactionsEntity();
             transaction.setAmount(amouth);
             transaction.setAdmin_mount(amouthAdmin);
             transaction.setUser_mount(amounthOwner);
-            transaction.setStatus(Booking_transactionsEntity.Status.PENDING);
+            transaction.setStatus(Booking_transactionsEntity.Status.APPROVED);
             transaction.setBookingEntity(booking);
             this.booking_transactionsRepository.save(transaction);
-            return httpResponseUtil.created("create booking transactions successfully", transaction);
+            
+            return httpResponseUtil.created("create booking transactions successfully and money has been automatically split", transaction);
 
         } catch (Exception e) {
             return httpResponseUtil.error("Error", e);

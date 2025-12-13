@@ -54,6 +54,18 @@ public class RoomsEntity {
     @JoinColumn(name = "hotel_id", nullable = false)
     private HotelEntity hotel;
 
+    // Transient field để lưu số lượng booking (không lưu vào DB)
+    @Transient
+    private Long bookingCount;
+
+    public void setBookingCount(Long bookingCount) {
+        this.bookingCount = bookingCount;
+    }
+
+    public Long getBookingCount() {
+        return bookingCount;
+    }
+
     @PrePersist
     public void prePersist() {
         this.deleted = false;

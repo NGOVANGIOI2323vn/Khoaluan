@@ -39,6 +39,7 @@ public class RoomsService implements RoomsServiceImpl {
     private final Image image;
     private final HotelService hotelService;
     private final UserService userService;
+    private final com.example.KLTN.Repository.BookingRepository bookingRepository;
 
     @Override
     public ResponseEntity<Apireponsi<HotelEntity>> updateAlldiscount_percent(Long id, double discount_percent) {
@@ -198,6 +199,13 @@ public class RoomsService implements RoomsServiceImpl {
     public ResponseEntity<Apireponsi<List<RoomsEntity>>> getRoomsByHotelId(Long hotelId) {
         try {
             List<RoomsEntity> rooms = roomsRepository.findActiveRoomsByHotelId(hotelId);
+            
+            // Set booking count cho mỗi room
+            for (RoomsEntity room : rooms) {
+                Long bookingCount = bookingRepository.countBookingsByRoomId(room.getId());
+                room.setBookingCount(bookingCount != null ? bookingCount : 0L);
+            }
+            
             return httpResponseUtil.ok("Get rooms by hotel ID success", rooms);
         } catch (Exception e) {
             return httpResponseUtil.error("Get rooms by hotel ID error", e);
@@ -218,6 +226,12 @@ public class RoomsService implements RoomsServiceImpl {
             );
             
             org.springframework.data.domain.Page<RoomsEntity> roomPage = roomsRepository.findActiveRoomsByHotelId(hotelId, pageable);
+            
+            // Set booking count cho mỗi room
+            for (RoomsEntity room : roomPage.getContent()) {
+                Long bookingCount = bookingRepository.countBookingsByRoomId(room.getId());
+                room.setBookingCount(bookingCount != null ? bookingCount : 0L);
+            }
             
             com.example.KLTN.dto.PageResponse<RoomsEntity> pageResponse = new com.example.KLTN.dto.PageResponse<>(
                 roomPage.getContent(),
@@ -259,6 +273,15 @@ public class RoomsService implements RoomsServiceImpl {
             HotelEntity hotel = room.getHotel();
             if (hotel == null || hotel.getOwner() == null || !hotel.getOwner().getId().equals(user.getId())) {
                 return httpResponseUtil.badRequest("Bạn không có quyền xóa phòng này");
+            }
+            
+            // Kiểm tra xem room có booking không (chỉ tính PENDING và PAID)
+            Long bookingCount = bookingRepository.countBookingsByRoomId(room.getId());
+            if (bookingCount != null && bookingCount > 0) {
+                return httpResponseUtil.badRequest(
+                    "Không thể xóa phòng này vì đã có " + bookingCount + 
+                    " đặt phòng. Vui lòng đợi đến khi tất cả đặt phòng hoàn tất hoặc đã hủy."
+                );
             }
             
             room.setDeleted(true);

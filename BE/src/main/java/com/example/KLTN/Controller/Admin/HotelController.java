@@ -3,19 +3,13 @@ package com.example.KLTN.Controller.Admin;
 import com.example.KLTN.Entity.HotelEntity;
 import com.example.KLTN.Service.HotelService;
 import com.example.KLTN.dto.Apireponsi;
-import com.example.KLTN.dto.hotelDto;
-import com.example.KLTN.dto.updateHotelDto;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.multipart.MultipartHttpServletRequest;
 
-import jakarta.servlet.http.HttpServletRequest;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -23,7 +17,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class HotelController {
     private final HotelService hotelService;
-    private final ObjectMapper objectMapper;
 
     /**
      * Lấy danh sách tất cả hotels đang chờ duyệt (pending)
@@ -86,13 +79,19 @@ public class HotelController {
     }
 
     /**
-     * Admin xóa hotel (soft delete) - chỉ admin
+     * Admin xóa hotel - CHỨC NĂNG ĐÃ BỊ VÔ HIỆU HÓA
+     * Admin chỉ có thể xem và khóa hotel, không thể tạo/sửa/xóa
      * Phải đặt trước @GetMapping("/{id}") để tránh conflict
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Apireponsi<HotelEntity>> deleteHotel(@PathVariable Long id) {
-        return hotelService.deleteHotelForAdmin(id);
+        return ResponseEntity.badRequest().body(new Apireponsi<HotelEntity>(
+            org.springframework.http.HttpStatus.BAD_REQUEST, 
+            "Admin không thể xóa khách sạn. Chỉ có thể xem và khóa khi cần thiết.", 
+            null, 
+            "FORBIDDEN_OPERATION"
+        ));
     }
 
     /**
@@ -105,119 +104,47 @@ public class HotelController {
     }
 
     /**
-     * Admin tạo hotel mới - chỉ admin
+     * Admin khóa/mở khóa hotel
+     */
+    @PutMapping("/{id}/lock")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Apireponsi<HotelEntity>> toggleLockHotel(@PathVariable Long id) {
+        return hotelService.toggleLockHotel(id);
+    }
+
+    /**
+     * Admin tạo hotel mới - CHỨC NĂNG ĐÃ BỊ VÔ HIỆU HÓA
+     * Admin chỉ có thể xem và khóa hotel, không thể tạo/sửa/xóa
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Apireponsi<HotelEntity>> createHotel(HttpServletRequest request,
                                                                @RequestParam(required = false) Long ownerId) {
-        try {
-            MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
-            
-            // Lấy JSON string từ part "hotel"
-            String hotelJson = null;
-            MultipartFile hotelPart = multipartRequest.getFile("hotel");
-            if (hotelPart != null && !hotelPart.isEmpty()) {
-                hotelJson = new String(hotelPart.getBytes(), StandardCharsets.UTF_8);
-            } else {
-                String[] hotelParams = multipartRequest.getParameterValues("hotel");
-                if (hotelParams != null && hotelParams.length > 0) {
-                    hotelJson = hotelParams[0];
-                }
-            }
-            
-            if (hotelJson == null || hotelJson.isEmpty()) {
-                return ResponseEntity.badRequest().body(new Apireponsi<HotelEntity>(
-                    org.springframework.http.HttpStatus.BAD_REQUEST, 
-                    "Hotel data is required", 
-                    null, 
-                    "MISSING_DATA"
-                ));
-            }
-            
-            // Parse JSON string thành hotelDto
-            hotelDto dto = objectMapper.readValue(hotelJson, hotelDto.class);
-            
-            // Lấy các file images (nếu có)
-            MultipartFile hotelImage = multipartRequest.getFile("hotelImage");
-            List<MultipartFile> roomsImage = multipartRequest.getFiles("roomsImage");
-            
-            return hotelService.createHotelForAdmin(dto, hotelImage, roomsImage, ownerId);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            e.printStackTrace();
-            return ResponseEntity.badRequest().body(new Apireponsi<HotelEntity>(
-                org.springframework.http.HttpStatus.BAD_REQUEST, 
-                "Lỗi parse JSON: " + e.getMessage(), 
-                null, 
-                "PARSE_ERROR"
-            ));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500).body(new Apireponsi<HotelEntity>(
-                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, 
-                "Lỗi khi tạo khách sạn: " + e.getMessage(), 
-                null, 
-                "INTERNAL_ERROR"
-            ));
-        }
+        return ResponseEntity.badRequest().body(new Apireponsi<HotelEntity>(
+            org.springframework.http.HttpStatus.BAD_REQUEST, 
+            "Admin không thể tạo khách sạn. Chỉ có thể xem và khóa khi cần thiết.", 
+            null, 
+            "FORBIDDEN_OPERATION"
+        ));
+        // Chức năng đã bị vô hiệu hóa
     }
 
     /**
-     * Admin cập nhật hotel - chỉ admin
+     * Admin cập nhật hotel - CHỨC NĂNG ĐÃ BỊ VÔ HIỆU HÓA
+     * Admin chỉ có thể xem và khóa hotel, không thể tạo/sửa/xóa
      */
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Apireponsi<HotelEntity>> updateHotel(@PathVariable Long id,
                                                                 HttpServletRequest request,
                                                                 @RequestParam(required = false) Long ownerId) {
-        try {
-            MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
-            
-            // Lấy JSON string từ part "hotel"
-            String hotelJson = null;
-            MultipartFile hotelPart = multipartRequest.getFile("hotel");
-            if (hotelPart != null && !hotelPart.isEmpty()) {
-                hotelJson = new String(hotelPart.getBytes(), StandardCharsets.UTF_8);
-            } else {
-                String[] hotelParams = multipartRequest.getParameterValues("hotel");
-                if (hotelParams != null && hotelParams.length > 0) {
-                    hotelJson = hotelParams[0];
-                }
-            }
-            
-            if (hotelJson == null || hotelJson.isEmpty()) {
-                return ResponseEntity.badRequest().body(new Apireponsi<HotelEntity>(
-                    org.springframework.http.HttpStatus.BAD_REQUEST, 
-                    "Hotel data is required", 
-                    null, 
-                    "MISSING_DATA"
-                ));
-            }
-            
-            // Parse JSON string thành updateHotelDto
-            updateHotelDto dto = objectMapper.readValue(hotelJson, updateHotelDto.class);
-            
-            // Lấy file image (nếu có)
-            MultipartFile hotelImage = multipartRequest.getFile("hotelImage");
-            
-            return hotelService.updateHotelForAdmin(id, dto, hotelImage, ownerId);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            e.printStackTrace();
-            return ResponseEntity.badRequest().body(new Apireponsi<HotelEntity>(
-                org.springframework.http.HttpStatus.BAD_REQUEST, 
-                "Lỗi parse JSON: " + e.getMessage(), 
-                null, 
-                "PARSE_ERROR"
-            ));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500).body(new Apireponsi<HotelEntity>(
-                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, 
-                "Lỗi khi cập nhật khách sạn: " + e.getMessage(), 
-                null, 
-                "INTERNAL_ERROR"
-            ));
-        }
+        return ResponseEntity.badRequest().body(new Apireponsi<HotelEntity>(
+            org.springframework.http.HttpStatus.BAD_REQUEST, 
+            "Admin không thể cập nhật khách sạn. Chỉ có thể xem và khóa khi cần thiết.", 
+            null, 
+            "FORBIDDEN_OPERATION"
+        ));
+        // Chức năng đã bị vô hiệu hóa
     }
 
 }

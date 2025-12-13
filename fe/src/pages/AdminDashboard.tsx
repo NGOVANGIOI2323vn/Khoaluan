@@ -6,7 +6,7 @@ import { ownerService } from '../services'
 import Header from '../components/Header'
 import AppModal from '../components/AppModal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Check, X, Eye, Lock, Unlock, UserCog, Plus, Edit, Trash2 } from 'lucide-react'
+import { Check, X, Eye, Lock, Unlock, UserCog } from 'lucide-react'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import { useDebounce } from '../hooks/useDebounce'
@@ -17,10 +17,9 @@ import cloudinaryService from '../utils/cloudinaryService'
 import { geocodingService } from '../services/geocodingService'
 
 // Memoized components để tránh re-render không cần thiết
-const TransactionRow = memo(({ transaction, index, onApprove }: { 
+const TransactionRow = memo(({ transaction, index }: { 
   transaction: BookingTransaction
   index: number
-  onApprove: (id: number) => void
 }) => (
   <motion.tr
     initial={{ opacity: 0, x: -20 }}
@@ -73,14 +72,7 @@ const TransactionRow = memo(({ transaction, index, onApprove }: {
       </span>
     </td>
     <td className="px-2 sm:px-4 py-2 sm:py-3">
-      {transaction.status === 'PENDING' && (
-        <button
-          onClick={() => onApprove(transaction.id)}
-          className="bg-green-600 text-white px-2 sm:px-3 py-1 rounded text-xs hover:bg-green-700 transition whitespace-nowrap"
-        >
-          Duyệt
-        </button>
-      )}
+      {/* Chức năng duyệt đã bị vô hiệu hóa - tiền đã được tự động chia khi thanh toán */}
     </td>
   </motion.tr>
 ))
@@ -183,7 +175,7 @@ const TabsNavigation = memo(({
   const tabs = useMemo(() => [
     { id: 'overview', label: 'Tổng quan', icon: '📊' },
     { id: 'pending-hotels', label: 'Duyệt khách sạn', icon: '⏳' },
-    { id: 'hotels', label: 'Quản lý khách sạn', icon: '🏨' },
+    { id: 'hotels', label: 'Xem khách sạn', icon: '🏨' },
     { id: 'transactions', label: 'Giao dịch', icon: '💳' },
     { id: 'withdraws', label: 'Yêu cầu rút tiền', icon: '💸' },
     { id: 'revenue', label: 'Doanh thu', icon: '💰' },
@@ -226,7 +218,6 @@ const TransactionsTable = memo(({
   searchQuery, 
   onSearchChange, 
   onClearSearch,
-  onApprove,
   page,
   totalPages,
   totalElements,
@@ -238,7 +229,6 @@ const TransactionsTable = memo(({
   searchQuery: string
   onSearchChange: (value: string) => void
   onClearSearch: () => void
-  onApprove: (id: number) => void
   page: number
   totalPages: number
   totalElements: number
@@ -298,7 +288,7 @@ const TransactionsTable = memo(({
                 <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Admin</th>
                 <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Owner</th>
                 <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Trạng thái</th>
-                <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold">Thao tác</th>
+                {/* Cột Thao tác đã bị loại bỏ - tiền đã được tự động chia khi thanh toán */}
               </tr>
             </thead>
             <tbody>
@@ -307,7 +297,6 @@ const TransactionsTable = memo(({
                   key={transaction.id}
                   transaction={transaction}
                   index={index}
-                  onApprove={onApprove}
                 />
               ))}
             </tbody>
@@ -947,26 +936,7 @@ const AdminDashboard = () => {
     }
   }
 
-  const handleApproveTransaction = useCallback(async (id: number) => {
-    const confirmed = await confirm({
-      title: 'Xác nhận duyệt giao dịch',
-      message: 'Bạn có chắc chắn muốn duyệt giao dịch này?',
-      type: 'info',
-    })
-    if (!confirmed) return
-    try {
-      await adminService.setTransaction(id)
-      showSuccess('Duyệt giao dịch thành công!')
-      // Refresh transactions để cập nhật stats
-      await fetchTransactions()
-      if (activeTab === 'transactions') {
-        await fetchTransactionsPaginated(transactionsSearchQuery || undefined, transactionsPage, transactionsPageSize)
-      }
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể duyệt giao dịch')
-    }
-  }, [confirm, showSuccess, showError, activeTab, transactionsSearchQuery, transactionsPage, transactionsPageSize, fetchTransactions, fetchTransactionsPaginated])
+  // handleApproveTransaction đã bị vô hiệu hóa - tiền đã được tự động chia khi thanh toán
 
   const handleApproveWithdraw = useCallback(async (id: number) => {
     const confirmed = await confirm({
@@ -1077,6 +1047,38 @@ const AdminDashboard = () => {
     }
   }, [confirm, showSuccess, showError, activeTab])
 
+  const handleToggleLockHotel = useCallback(async (id: number, isLocked: boolean) => {
+    const confirmed = await confirm({
+      title: isLocked ? 'Xác nhận mở khóa khách sạn' : 'Xác nhận khóa khách sạn',
+      message: isLocked 
+        ? 'Bạn có chắc chắn muốn mở khóa khách sạn này? Khách sạn sẽ hiển thị lại cho người dùng.'
+        : 'Bạn có chắc chắn muốn khóa khách sạn này? Khách sạn sẽ không hiển thị cho người dùng.',
+      type: isLocked ? 'success' : 'warning',
+    })
+    if (!confirmed) return
+    try {
+      setProcessingHotelId(id)
+      await adminService.toggleLockHotel(id)
+      showSuccess(isLocked ? 'Mở khóa khách sạn thành công!' : 'Khóa khách sạn thành công!')
+      
+      // Cập nhật state trực tiếp
+      if (activeTab === 'hotels') {
+        setAllHotels(prev => prev.map(hotel => 
+          hotel.id === id ? { ...hotel, locked: !isLocked } : hotel
+        ))
+      } else if (activeTab === 'pending-hotels') {
+        setPendingHotels(prev => prev.map(hotel => 
+          hotel.id === id ? { ...hotel, locked: !isLocked } : hotel
+        ))
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      showError(error.response?.data?.message || 'Không thể khóa/mở khóa khách sạn')
+    } finally {
+      setProcessingHotelId(null)
+    }
+  }, [confirm, showSuccess, showError, activeTab])
+
   const handleUpdateUserRole = useCallback(async (userId: number, newRole: 'USER' | 'OWNER') => {
     const roleName = newRole === 'USER' ? 'Khách hàng' : 'Chủ khách sạn'
     const confirmed = await confirm({
@@ -1150,63 +1152,7 @@ const AdminDashboard = () => {
     }
   }, [confirm, showSuccess, showError, activeTab, userRoleFilter, fetchUsers, fetchUserStats, fetchData])
 
-  // Hotel CRUD handlers
-  const handleCreateHotel = useCallback(() => {
-    setIsEditingHotel(false)
-    setEditingHotelId(null)
-    setSelectedHotel(null)
-    setIsHotelModalOpen(true)
-  }, [])
-
-  const handleEditHotel = useCallback(async (hotel: PendingHotel) => {
-    setIsEditingHotel(true)
-    setEditingHotelId(hotel.id)
-    setRemovedImageIds([]) // Reset removed images when opening edit modal
-    
-    // Fetch hotel detail to get rooms
-    try {
-      const response = await adminService.getHotelById(hotel.id)
-      if (response.data) {
-        setSelectedHotel(response.data)
-      } else {
-        setSelectedHotel(hotel)
-      }
-    } catch (error) {
-      console.error('Error fetching hotel detail:', error)
-      setSelectedHotel(hotel)
-    }
-    
-    setIsHotelModalOpen(true)
-  }, [])
-
-  const handleDeleteHotel = useCallback(async (id: number) => {
-    const confirmed = await confirm({
-      title: 'Xác nhận xóa khách sạn',
-      message: 'Bạn có chắc chắn muốn xóa khách sạn này? Hành động này không thể hoàn tác.',
-      type: 'danger',
-    })
-    if (!confirmed) return
-    try {
-      setProcessingHotelId(id)
-      await adminService.deleteHotel(id)
-      showSuccess('Xóa khách sạn thành công!')
-      
-      // Cập nhật state trực tiếp thay vì gọi fetchData() để tránh loading state
-      if (activeTab === 'hotels') {
-        setAllHotels(prev => prev.filter(hotel => hotel.id !== id))
-      } else if (activeTab === 'pending-hotels') {
-        setPendingHotels(prev => prev.filter(hotel => hotel.id !== id))
-      }
-      
-      // Cập nhật pending hotels count (nếu hotel đó đang pending)
-      setPendingHotels(prev => prev.filter(hotel => hotel.id !== id))
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      showError(error.response?.data?.message || 'Không thể xóa khách sạn')
-    } finally {
-      setProcessingHotelId(null)
-    }
-  }, [confirm, showSuccess, showError, activeTab])
+  // Hotel CRUD handlers đã bị vô hiệu hóa - admin chỉ có thể xem và khóa hotel
 
   const handleSubmitHotel = useCallback(async (
     data: HotelFormData, 
@@ -1480,6 +1426,22 @@ const AdminDashboard = () => {
                             >
                               <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                             </button>
+                            <button
+                              onClick={() => handleToggleLockHotel(hotel.id, hotel.locked || false)}
+                              disabled={processingHotelId === hotel.id}
+                              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
+                                hotel.locked
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+                              }`}
+                              title={hotel.locked ? 'Mở khóa khách sạn' : 'Khóa khách sạn'}
+                            >
+                              {hotel.locked ? (
+                                <Unlock className="w-3 h-3 sm:w-4 sm:h-4" />
+                              ) : (
+                                <Lock className="w-3 h-3 sm:w-4 sm:h-4" />
+                              )}
+                            </button>
                           </div>
                         </div>
                       </motion.div>
@@ -1534,7 +1496,7 @@ const AdminDashboard = () => {
                 className="space-y-6"
               >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
-                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold">Quản lý khách sạn</h2>
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold">Xem khách sạn</h2>
                   <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                     <input
                       type="text"
@@ -1551,13 +1513,6 @@ const AdminDashboard = () => {
                         ✕
                       </button>
                     )}
-                    <button
-                      onClick={handleCreateHotel}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold whitespace-nowrap"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Tạo mới
-                    </button>
                     <span className="px-2 sm:px-3 py-2 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap">
                       {allHotelsTotalElements > 0 ? allHotelsTotalElements : allHotels.length} khách sạn
                     </span>
@@ -1574,13 +1529,7 @@ const AdminDashboard = () => {
                 ) : allHotels.length === 0 ? (
                   <div className="text-center py-12 bg-gray-50 rounded-2xl">
                     <div className="text-6xl mb-4">🏨</div>
-                    <p className="text-gray-600 text-lg mb-4">Chưa có khách sạn nào</p>
-                    <button
-                      onClick={handleCreateHotel}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-semibold"
-                    >
-                      Tạo khách sạn đầu tiên
-                    </button>
+                    <p className="text-gray-600 text-lg">Chưa có khách sạn nào</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -1627,26 +1576,33 @@ const AdminDashboard = () => {
                           )}
                           <div className="flex flex-wrap gap-2">
                             <button
-                              onClick={() => handleEditHotel(hotel)}
-                              className="px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-all flex items-center justify-center gap-2"
-                              aria-label="Edit hotel"
-                            >
-                              <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteHotel(hotel.id)}
-                              disabled={processingHotelId === hotel.id}
-                              className="px-3 sm:px-4 py-2 sm:py-2.5 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                              aria-label="Delete hotel"
-                            >
-                              <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                            </button>
-                            <button
                               onClick={() => setSelectedHotel(hotel)}
                               className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center"
                               aria-label="View details"
                             >
                               <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleToggleLockHotel(hotel.id, hotel.locked || false)}
+                              disabled={processingHotelId === hotel.id}
+                              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
+                                hotel.locked
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+                              }`}
+                              title={hotel.locked ? 'Mở khóa khách sạn' : 'Khóa khách sạn'}
+                            >
+                              {hotel.locked ? (
+                                <>
+                                  <Unlock className="w-3 h-3 sm:w-4 sm:h-4" />
+                                  <span className="text-xs sm:text-sm hidden sm:inline">Mở khóa</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="w-3 h-3 sm:w-4 sm:h-4" />
+                                  <span className="text-xs sm:text-sm hidden sm:inline">Khóa</span>
+                                </>
+                              )}
                             </button>
                           </div>
                         </div>
@@ -1762,7 +1718,6 @@ const AdminDashboard = () => {
                 searchQuery={transactionsSearchQuery}
                 onSearchChange={setTransactionsSearchQuery}
                 onClearSearch={() => setTransactionsSearchQuery('')}
-                onApprove={handleApproveTransaction}
                 page={transactionsPage}
                 totalPages={transactionsTotalPages}
                 totalElements={transactionsTotalElements}

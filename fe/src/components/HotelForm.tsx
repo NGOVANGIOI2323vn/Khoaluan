@@ -60,7 +60,7 @@ const roomSchema = z.object({
 const hotelSchemaWithRooms = hotelSchema.extend({
   rooms: z
     .array(roomSchema)
-    .min(1, 'Phải có ít nhất một phòng')
+    .min(2, 'Khách sạn phải có ít nhất 2 phòng')
     .max(50, 'Không được tạo quá 50 phòng cùng lúc')
     .refine(
       (rooms) => rooms.every((room) => room.image !== null || room.image !== undefined),

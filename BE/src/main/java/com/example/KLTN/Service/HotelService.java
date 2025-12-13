@@ -114,6 +114,11 @@ public class HotelService implements HotelServiceImpl {
             if (dto.getRooms() == null || dto.getRooms().isEmpty()) {
                 return httpResponseUtil.notFound("Danh sách phòng không được để trống");
             }
+            
+            // Kiểm tra số lượng phòng phải >= 2
+            if (dto.getRooms().size() < 2) {
+                return httpResponseUtil.badRequest("Khách sạn phải có ít nhất 2 phòng");
+            }
 
             // Kiểm tra số lượng ảnh phòng (có thể là file hoặc URL)
             boolean useImageUrls = dto.getRooms().stream().anyMatch(room -> room.getImageUrl() != null && !room.getImageUrl().isEmpty());
@@ -199,6 +204,13 @@ public class HotelService implements HotelServiceImpl {
             }
             if (hotel.getStatus().equals(HotelEntity.Status.pending)) {
                 return httpResponseUtil.notFound("Hotel Chưa được phép kinh doanh");
+            }
+            
+            // Kiểm tra số lượng phòng hiện tại phải >= 2
+            List<RoomsEntity> currentRooms = roomsRepository.findActiveRoomsByHotelId(hotel.getId());
+            if (currentRooms == null || currentRooms.size() < 2) {
+                return httpResponseUtil.badRequest("Khách sạn phải có ít nhất 2 phòng. Hiện tại khách sạn có " + 
+                    (currentRooms == null ? 0 : currentRooms.size()) + " phòng.");
             }
 
             hotel.setName(dto.getName());
@@ -313,6 +325,11 @@ public class HotelService implements HotelServiceImpl {
             if (minPrice != null && minPrice > 0) {
                 hotel.setMinPrice(minPrice);
             }
+            
+            // Set booking count cho hotel
+            Long bookingCount = bookingRepository.countBookingsByHotelId(hotel.getId());
+            hotel.setBookingCount(bookingCount != null ? bookingCount : 0L);
+            
             return httpResponseUtil.ok("Hotel", hotel);
         } catch (Exception e) {
             return httpResponseUtil.error("Erorr", e);
@@ -343,6 +360,16 @@ public class HotelService implements HotelServiceImpl {
             if (hotel.getOwner() == null || !hotel.getOwner().getId().equals(owner.getId())) {
                 return httpResponseUtil.badRequest("Bạn không có quyền xóa khách sạn này");
             }
+            
+            // Kiểm tra xem hotel có booking không (chỉ tính PENDING và PAID)
+            Long bookingCount = bookingRepository.countBookingsByHotelId(hotel.getId());
+            if (bookingCount != null && bookingCount > 0) {
+                return httpResponseUtil.badRequest(
+                    "Không thể xóa khách sạn này vì đã có " + bookingCount + 
+                    " đặt phòng. Vui lòng đợi đến khi tất cả đặt phòng hoàn tất hoặc đã hủy."
+                );
+            }
+            
             hotel.setDeleted(true);
             List<RoomsEntity> hotelRooms = hotel.getRooms();
             if (hotelRooms == null || hotelRooms.isEmpty()) {
@@ -689,7 +716,7 @@ public class HotelService implements HotelServiceImpl {
             
             List<HotelEntity> hotels = hotelRepository.findByOwnerId(owner.getId());
             
-            // Set minPrice cho mỗi hotel
+            // Set minPrice và bookingCount cho mỗi hotel
             if (!hotels.isEmpty()) {
                 List<Long> hotelIds = hotels.stream()
                         .map(HotelEntity::getId)
@@ -714,6 +741,9 @@ public class HotelService implements HotelServiceImpl {
                     if (minPrice != null) {
                         hotel.setMinPrice(minPrice);
                     }
+                    // Set booking count
+                    Long bookingCount = bookingRepository.countBookingsByHotelId(hotel.getId());
+                    hotel.setBookingCount(bookingCount != null ? bookingCount : 0L);
                 }
             }
             
@@ -770,6 +800,9 @@ public class HotelService implements HotelServiceImpl {
                     if (minPrice != null) {
                         hotel.setMinPrice(minPrice);
                     }
+                    // Set booking count
+                    Long bookingCount = bookingRepository.countBookingsByHotelId(hotel.getId());
+                    hotel.setBookingCount(bookingCount != null ? bookingCount : 0L);
                 }
             }
             
@@ -1020,6 +1053,11 @@ public class HotelService implements HotelServiceImpl {
             if (dto.getRooms() == null || dto.getRooms().isEmpty()) {
                 return httpResponseUtil.notFound("Danh sách phòng không được để trống");
             }
+            
+            // Kiểm tra số lượng phòng phải >= 2
+            if (dto.getRooms().size() < 2) {
+                return httpResponseUtil.badRequest("Khách sạn phải có ít nhất 2 phòng");
+            }
 
             boolean useImageUrls = dto.getRooms().stream().anyMatch(room -> room.getImageUrl() != null && !room.getImageUrl().isEmpty());
             boolean useImageFiles = roomsImage != null && !roomsImage.isEmpty();
@@ -1084,6 +1122,13 @@ public class HotelService implements HotelServiceImpl {
             
             if (hotel == null) {
                 return httpResponseUtil.notFound("Hotel not found");
+            }
+            
+            // Kiểm tra số lượng phòng hiện tại phải >= 2
+            List<RoomsEntity> currentRooms = roomsRepository.findActiveRoomsByHotelId(hotel.getId());
+            if (currentRooms == null || currentRooms.size() < 2) {
+                return httpResponseUtil.badRequest("Khách sạn phải có ít nhất 2 phòng. Hiện tại khách sạn có " + 
+                    (currentRooms == null ? 0 : currentRooms.size()) + " phòng.");
             }
 
             // Cập nhật thông tin cơ bản
@@ -1207,6 +1252,34 @@ public class HotelService implements HotelServiceImpl {
             return httpResponseUtil.ok("Hotel retrieved successfully", hotel);
         } catch (Exception e) {
             return httpResponseUtil.error("Error getting hotel", e);
+        }
+    }
+
+    /**
+     * Admin khóa/mở khóa hotel
+     */
+    @Transactional
+    public ResponseEntity<Apireponsi<HotelEntity>> toggleLockHotel(Long id) {
+        try {
+            HotelEntity hotel = hotelRepository.findById(id)
+                .filter(h -> !h.isDeleted())
+                .orElse(null);
+            
+            if (hotel == null) {
+                return httpResponseUtil.notFound("Hotel not found");
+            }
+            
+            // Toggle lock status
+            hotel.setLocked(!hotel.isLocked());
+            this.saveHotel(hotel);
+            
+            String message = hotel.isLocked() 
+                ? "Khóa khách sạn thành công. Khách sạn sẽ không hiển thị cho người dùng." 
+                : "Mở khóa khách sạn thành công. Khách sạn sẽ hiển thị lại cho người dùng.";
+            
+            return httpResponseUtil.ok(message, hotel);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error toggling lock hotel", e);
         }
     }
 }

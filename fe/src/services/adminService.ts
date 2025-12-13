@@ -64,6 +64,7 @@ export interface PendingHotel {
   images?: Array<{ id: number; imageUrl: string }>
   rating: number
   status: 'pending' | 'success' | 'fail'
+  locked?: boolean
   rooms?: PendingHotelRoom[]
   owner?: {
     id: number
@@ -232,6 +233,11 @@ export const adminService = {
 
   deleteHotel: async (id: number) => {
     const response = await api.delete<ApiResponse<PendingHotel>>(`/admin/hotels/${id}`)
+    return response.data
+  },
+
+  toggleLockHotel: async (id: number) => {
+    const response = await api.put<ApiResponse<PendingHotel>>(`/admin/hotels/${id}/lock`)
     return response.data
   },
 

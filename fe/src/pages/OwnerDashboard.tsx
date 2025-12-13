@@ -408,6 +408,14 @@ const OwnerDashboard = () => {
 
 
   const handleDeleteHotel = async (hotelId: number) => {
+    const hotel = hotels.find(h => h.id === hotelId)
+    const bookingCount = hotel?.bookingCount || 0
+    
+    if (bookingCount > 0) {
+      showError(`Không thể xóa khách sạn này vì đã có ${bookingCount} đặt phòng. Vui lòng đợi đến khi tất cả đặt phòng hoàn tất hoặc đã hủy.`)
+      return
+    }
+    
     const confirmed = await confirm({
       title: 'Xác nhận xóa khách sạn',
       message: 'Bạn có chắc chắn muốn xóa khách sạn này? Hành động này không thể hoàn tác.',
@@ -613,6 +621,14 @@ const OwnerDashboard = () => {
   }
 
   const handleDeleteRoom = async (roomId: number) => {
+    const room = rooms.find(r => r.id === roomId)
+    const bookingCount = room?.bookingCount || 0
+    
+    if (bookingCount > 0) {
+      showError(`Không thể xóa phòng này vì đã có ${bookingCount} đặt phòng. Vui lòng đợi đến khi tất cả đặt phòng hoàn tất hoặc đã hủy.`)
+      return
+    }
+    
     const confirmed = await confirm({
       title: 'Xác nhận xóa phòng',
       message: 'Bạn có chắc chắn muốn xóa phòng này? Hành động này không thể hoàn tác.',
@@ -888,6 +904,11 @@ const OwnerDashboard = () => {
                           <div>
                             <div className="font-semibold text-sm">Phòng {room.Number}</div>
                             <div className="text-xs text-gray-600 mt-1">{room.type}</div>
+                            {room.bookingCount !== undefined && room.bookingCount > 0 && (
+                              <div className="text-xs text-blue-600 mt-1 font-semibold">
+                                📋 {room.bookingCount} đặt phòng
+                              </div>
+                            )}
                           </div>
                           <div className="text-right">
                             <div className="text-xs font-semibold text-blue-600">
@@ -918,8 +939,14 @@ const OwnerDashboard = () => {
                               e.stopPropagation()
                               handleDeleteRoom(room.id)
                             }}
-                            className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-all flex items-center gap-1 text-xs"
+                            disabled={(room.bookingCount || 0) > 0}
+                            className={`px-2 py-1 rounded transition-all flex items-center gap-1 text-xs ${
+                              (room.bookingCount || 0) > 0
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-red-100 text-red-700 hover:bg-red-200'
+                            }`}
                             aria-label="Delete room"
+                            title={(room.bookingCount || 0) > 0 ? `Không thể xóa vì có ${room.bookingCount} đặt phòng` : 'Xóa phòng'}
                           >
                             <Trash2 className="w-3 h-3" />
                             Xóa
@@ -972,6 +999,22 @@ const OwnerDashboard = () => {
                       {selectedHotel.name}
                     </h3>
                     <div className="space-y-1.5">
+                      {selectedHotel.locked && (
+                        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-sm text-red-700 font-semibold flex items-center gap-2">
+                            <span>🔒</span>
+                            <span>Khách sạn này đã bị khóa bởi admin. Khách sạn sẽ không hiển thị cho người dùng.</span>
+                          </p>
+                        </div>
+                      )}
+                      {selectedHotel.bookingCount !== undefined && selectedHotel.bookingCount > 0 && (
+                        <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-sm text-blue-700 font-semibold flex items-center gap-2">
+                            <span>📋</span>
+                            <span>Khách sạn này có {selectedHotel.bookingCount} đặt phòng. Không thể xóa khách sạn khi còn đặt phòng.</span>
+                          </p>
+                        </div>
+                      )}
                       <p className="text-sm sm:text-base text-gray-700 flex items-start gap-2">
                         <span className="text-gray-500 mt-0.5">📍</span>
                         <span className="break-words flex-1">{selectedHotel.address}</span>
@@ -1053,7 +1096,12 @@ const OwnerDashboard = () => {
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-xs text-gray-600">Số booking</div>
-                      <div className="text-sm font-semibold mt-1">{roomBookings.length}</div>
+                      <div className="text-sm font-semibold mt-1">
+                        {selectedRoom.bookingCount !== undefined ? selectedRoom.bookingCount : roomBookings.length}
+                      </div>
+                      {selectedRoom.bookingCount !== undefined && selectedRoom.bookingCount > 0 && (
+                        <div className="text-xs text-blue-600 mt-1">Không thể xóa</div>
+                      )}
                     </div>
                   </div>
 

@@ -12,13 +12,13 @@ import java.util.List;
 
 @Repository
 public interface HotelRepository extends JpaRepository<HotelEntity, Long> {
-    @Query("SELECT h FROM HotelEntity h WHERE h.status <> :status AND h.deleted = false")
+    @Query("SELECT h FROM HotelEntity h WHERE h.status <> :status AND h.deleted = false AND h.locked = false")
     List<HotelEntity> findAllHotelsNotPending(@Param("status") HotelEntity.Status status);
 
-    @Query("SELECT h FROM HotelEntity h WHERE h.status <> :status AND h.deleted = false")
+    @Query("SELECT h FROM HotelEntity h WHERE h.status <> :status AND h.deleted = false AND h.locked = false")
     Page<HotelEntity> findAllHotelsNotPending(@Param("status") HotelEntity.Status status, Pageable pageable);
 
-    @Query("SELECT h FROM HotelEntity h WHERE h.status <> :status AND h.deleted = false " +
+    @Query("SELECT h FROM HotelEntity h WHERE h.status <> :status AND h.deleted = false AND h.locked = false " +
            "AND (:minRating IS NULL OR h.rating >= :minRating) " +
            "AND (:maxRating IS NULL OR h.rating <= :maxRating) " +
            "AND (:city IS NULL OR LOWER(h.city) = LOWER(:city)) " +
@@ -33,7 +33,7 @@ public interface HotelRepository extends JpaRepository<HotelEntity, Long> {
         Pageable pageable
     );
 
-    @Query("SELECT h FROM HotelEntity h WHERE h.id = :id AND h.status <> :status AND h.deleted = false")
+    @Query("SELECT h FROM HotelEntity h WHERE h.id = :id AND h.status <> :status AND h.deleted = false AND h.locked = false")
     HotelEntity findByIdNotPending(@Param("id") Long id, @Param("status") HotelEntity.Status status);
     
     // Query để lấy min price từ rooms của hotel (ưu tiên AVAILABLE, nếu không có thì lấy tất cả)
