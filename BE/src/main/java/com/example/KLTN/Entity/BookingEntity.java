@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "booking")
@@ -25,6 +26,8 @@ public class BookingEntity {
     private LocalDateTime bookingDate;
     private LocalDate checkInDate;
     private LocalDate checkOutDate;
+    private LocalTime checkInTime; // Giờ check-in (mặc định 14:00)
+    private LocalTime checkOutTime; // Giờ check-out (mặc định 11:00)
     private BigDecimal totalPrice;
     private String qrUrl;
     @ManyToOne(fetch = FetchType.EAGER)

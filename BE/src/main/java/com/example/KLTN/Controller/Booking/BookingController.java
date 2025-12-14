@@ -48,6 +48,23 @@ public class BookingController {
         return bookingService.getBookingsByRoom(roomId);
     }
     
+    @GetMapping("/rooms/{roomId}/min-checkin-time")
+    public ResponseEntity<Apireponsi<java.util.Map<String, Object>>> getMinCheckInTime(
+            @PathVariable Long roomId,
+            @RequestParam("checkInDate") String checkInDateStr) {
+        try {
+            java.time.LocalDate checkInDate = java.time.LocalDate.parse(checkInDateStr);
+            return bookingService.getMinCheckInTime(roomId, checkInDate);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(new Apireponsi<>(
+                org.springframework.http.HttpStatus.BAD_REQUEST,
+                "Invalid date format. Use YYYY-MM-DD",
+                null,
+                "INVALID_DATE"
+            ));
+        }
+    }
+    
     @GetMapping("/{id}")
     public ResponseEntity<Apireponsi<BookingEntity>> getBookingById(@PathVariable Long id) {
         return bookingService.getBookingById(id);

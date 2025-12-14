@@ -32,7 +32,9 @@ export interface Booking {
 
 export interface CreateBookingData {
   checkInDate: string
+  checkInTime?: string // Format: "HH:mm" (mặc định "14:00", user tự chọn)
   checkOutDate: string
+  checkOutTime?: string // Format: "HH:mm" (user tự chọn, nhưng phải đảm bảo không quá 1 ngày)
 }
 
 export interface ApiResponse<T> {
@@ -79,6 +81,14 @@ export const bookingService = {
 
   getBookingById: async (bookingId: number) => {
     const response = await api.get<ApiResponse<Booking>>(`/bookings/${bookingId}`)
+    return response.data
+  },
+
+  getMinCheckInTime: async (roomId: number, checkInDate: string) => {
+    const response = await api.get<ApiResponse<{ minCheckInTime: string; hasCheckoutOnSameDate: boolean; message: string }>>(
+      `/bookings/rooms/${roomId}/min-checkin-time`,
+      { params: { checkInDate } }
+    )
     return response.data
   },
 }

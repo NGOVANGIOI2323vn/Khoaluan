@@ -30,31 +30,41 @@ const RoomAvailability = ({ roomId, checkIn, checkOut }: RoomAvailabilityProps) 
   }, [roomId])
 
   // Kiểm tra xem phòng có bị đặt trong khoảng thời gian này không
+  // Logic mới: Tính thời gian dọn phòng (11h-14h)
+  // - Check-out trước 11h, check-in sau 14h
+  // - Cho phép check-in cùng ngày với check-out của booking khác (có thời gian dọn phòng)
   const isBookedInRange = () => {
     if (!checkIn || !checkOut) return false
     
     const checkInDate = new Date(checkIn)
+    checkInDate.setHours(0, 0, 0, 0)
     const checkOutDate = new Date(checkOut)
+    checkOutDate.setHours(0, 0, 0, 0)
     
     return bookings.some((booking) => {
       if (booking.status !== 'PAID' && booking.status !== 'PENDING') return false
       
       const bookingCheckIn = new Date(booking.checkInDate)
+      bookingCheckIn.setHours(0, 0, 0, 0)
       const bookingCheckOut = new Date(booking.checkOutDate)
+      bookingCheckOut.setHours(0, 0, 0, 0)
       
-      // Kiểm tra xung đột: booking nằm trong khoảng thời gian đang chọn
-      return (
-        (bookingCheckIn <= checkInDate && bookingCheckOut > checkInDate) ||
-        (bookingCheckIn < checkOutDate && bookingCheckOut >= checkOutDate) ||
-        (bookingCheckIn >= checkInDate && bookingCheckOut <= checkOutDate)
-      )
+      // Kiểm tra xung đột với logic mới:
+      // - Overlap nếu: bookingCheckIn < checkOutDate && bookingCheckOut > checkInDate
+      // - NHƯNG không overlap nếu: bookingCheckOut === checkInDate (cùng ngày, có thời gian dọn phòng 11h-14h)
+      const isOverlap = bookingCheckIn < checkOutDate && bookingCheckOut > checkInDate
+      const isSameDayCheckout = bookingCheckOut.getTime() === checkInDate.getTime()
+      
+      return isOverlap && !isSameDayCheckout
     })
   }
 
   // Lấy danh sách ngày bị đặt trong 30 ngày tới
+  // Logic mới: Không tính ngày check-out vì có thời gian dọn phòng (có thể đặt check-in cùng ngày)
   const getBookedDates = () => {
     const bookedDates: string[] = []
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
     const next30Days = new Date(today)
     next30Days.setDate(today.getDate() + 30)
 
@@ -62,8 +72,11 @@ const RoomAvailability = ({ roomId, checkIn, checkOut }: RoomAvailabilityProps) 
       if (booking.status !== 'PAID' && booking.status !== 'PENDING') return
       
       const checkIn = new Date(booking.checkInDate)
+      checkIn.setHours(0, 0, 0, 0)
       const checkOut = new Date(booking.checkOutDate)
+      checkOut.setHours(0, 0, 0, 0)
       
+      // Chỉ tính từ check-in đến check-out (không tính ngày check-out vì có thể đặt check-in cùng ngày)
       const currentDate = new Date(checkIn)
       while (currentDate < checkOut && currentDate <= next30Days) {
         bookedDates.push(currentDate.toISOString().split('T')[0])

@@ -173,14 +173,53 @@ const Checkout = () => {
   const savedBookingData = savedBooking ? JSON.parse(savedBooking) : null
   const initialCheckIn = searchParams.get('checkIn') || (savedBookingData?.checkIn || savedBookingData?.checkInDate || new Date().toISOString().split('T')[0])
   const initialCheckOut = searchParams.get('checkOut') || (savedBookingData?.checkOut || savedBookingData?.checkOutDate || new Date(Date.now() + 86400000).toISOString().split('T')[0])
-  
-  const [checkIn, setCheckIn] = useState(initialCheckIn)
-  const [checkOut, setCheckOut] = useState(initialCheckOut)
-  
+  const initialCheckInTime = savedBookingData?.checkInTime || '14:00'
+  const initialCheckOutTime = savedBookingData?.checkOutTime || '11:00'
+
   // Lấy roomId từ searchParams hoặc localStorage
   const roomIdFromParams = searchParams.get('roomId')
   const roomIdFromStorage = savedBookingData?.roomId
   const roomId = roomIdFromParams ? Number(roomIdFromParams) : (roomIdFromStorage ? Number(roomIdFromStorage) : null)
+
+  const [checkIn, setCheckIn] = useState(initialCheckIn)
+  const [checkInTime, setCheckInTime] = useState(initialCheckInTime)
+  const [checkOut, setCheckOut] = useState(initialCheckOut)
+  const [checkOutTime, setCheckOutTime] = useState(initialCheckOutTime)
+  const [minCheckInTime, setMinCheckInTime] = useState('00:00') // Cho phép chọn bất kỳ giờ nào
+  const [checkInTimeMessage, setCheckInTimeMessage] = useState('Bạn có thể chọn bất kỳ giờ nào (khuyến nghị từ 14:00)')
+  
+  // Lấy giờ check-in tối thiểu khi check-in date hoặc room thay đổi
+  useEffect(() => {
+    const fetchMinCheckInTime = async () => {
+      if (!roomId || !checkIn) return
+      
+      try {
+        const response = await bookingService.getMinCheckInTime(roomId, checkIn)
+        if (response.data) {
+          setMinCheckInTime(response.data.minCheckInTime)
+          setCheckInTimeMessage(response.data.message)
+          // Không tự động cập nhật checkInTime, để user tự chọn giờ
+        }
+      } catch (err) {
+        console.error('Error fetching min check-in time:', err)
+        // Fallback về mặc định
+        setMinCheckInTime('00:00') // Cho phép chọn bất kỳ giờ nào
+        setCheckInTimeMessage('Bạn có thể chọn bất kỳ giờ nào (khuyến nghị từ 14:00)')
+      }
+    }
+    
+    fetchMinCheckInTime()
+  }, [checkIn, roomId])
+  
+  // Tính số đêm từ check-in và check-out
+  const calculateNights = () => {
+    const checkInDate = new Date(checkIn)
+    const checkOutDate = new Date(checkOut)
+    const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays > 0 ? diffDays : 1
+  }
+  const nights = calculateNights()
   
   // Fetch user profile to auto-fill email and phone
   useEffect(() => {
@@ -356,7 +395,11 @@ const Checkout = () => {
   
   // Handle date click from calendar
   const handleDateClick = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    // Sử dụng local date string để tránh vấn đề timezone
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     
@@ -378,27 +421,24 @@ const Checkout = () => {
     // 3. Nếu click vào ngày giữa checkIn và checkOut: không làm gì
     // 4. Nếu click vào checkIn hoặc checkOut hiện tại: reset
     
+    // Logic: Chọn checkIn và checkOut
     if (!checkIn) {
       // Chưa có checkIn, set checkIn
       setCheckIn(dateStr)
     } else if (!checkOut) {
       // Có checkIn nhưng chưa có checkOut
-      const checkInDate = new Date(checkIn)
-      if (date > checkInDate) {
+      // So sánh date string để tránh vấn đề timezone
+      if (dateStr > checkIn) {
         setCheckOut(dateStr)
-      } else if (date < checkInDate) {
+      } else if (dateStr < checkIn) {
         // Nếu click vào ngày trước checkIn, set làm checkIn mới
         setCheckIn(dateStr)
-        setCheckOut('')
       } else {
         // Click vào chính checkIn, reset
         setCheckIn('')
       }
     } else {
       // Đã có cả checkIn và checkOut
-      const checkInDate = new Date(checkIn)
-      const checkOutDate = new Date(checkOut)
-      
       if (dateStr === checkIn) {
         // Click vào checkIn, reset checkIn
         setCheckIn('')
@@ -406,11 +446,11 @@ const Checkout = () => {
       } else if (dateStr === checkOut) {
         // Click vào checkOut, chỉ reset checkOut
         setCheckOut('')
-      } else if (date < checkInDate) {
+      } else if (dateStr < checkIn) {
         // Click vào ngày trước checkIn, set làm checkIn mới
         setCheckIn(dateStr)
         setCheckOut('')
-      } else if (date > checkOutDate) {
+      } else if (dateStr > checkOut) {
         // Click vào ngày sau checkOut, set làm checkOut mới
         setCheckOut(dateStr)
       } else {
@@ -420,16 +460,7 @@ const Checkout = () => {
     }
   }
   
-  // Tính toán lại số đêm và giá khi dates thay đổi
-  const calculateNights = () => {
-    const checkInDate = new Date(checkIn)
-    const checkOutDate = new Date(checkOut)
-    const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays > 0 ? diffDays : 1
-  }
-  
-  const nights = calculateNights()
+  // Sử dụng nights từ state (đã được tính từ checkIn + nights)
   const pricePerNight = savedBookingData?.roomPrice || bookingData.pricePerNight
   const subtotal = pricePerNight * nights
   const total = subtotal
@@ -513,29 +544,59 @@ const Checkout = () => {
       let bookingId: number | null = null
       
       // Nếu có roomId, tạo booking mới
-      if (roomId) {
+      const currentRoomId = roomId || (searchParams.get('roomId') ? Number(searchParams.get('roomId')) : null)
+      if (currentRoomId) {
         // Validate dates
-        const checkInDate = new Date(checkIn)
-        const checkOutDate = new Date(checkOut)
+        const checkInDateObj = new Date(checkIn)
+        const checkOutDateObj = new Date(checkOut)
         const today = new Date()
         today.setHours(0, 0, 0, 0)
         
-        if (checkInDate < today) {
+        if (checkInDateObj < today) {
           showError('Ngày check-in phải từ hôm nay trở đi')
           setLoading(false)
           return
         }
         
-        if (checkOutDate <= checkInDate) {
+        // Validate check-out phải sau check-in
+        if (checkOutDateObj <= checkInDateObj) {
           showError('Ngày check-out phải sau ngày check-in')
           setLoading(false)
           return
         }
         
-        // Tạo booking với dates đã chọn
+        // Validate checkInTime
+        if (!checkInTime || checkInTime < minCheckInTime) {
+          showError(checkInTimeMessage)
+          setLoading(false)
+          return
+        }
+        
+        // Validate checkOutTime
+        const checkInDate = new Date(checkIn)
+        const checkOutDate = new Date(checkOut)
+        const daysDiff = Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
+        
+        if (daysDiff === 1 && checkOutTime > checkInTime) {
+          showError(`Để đảm bảo không quá 1 ngày, giờ check-out phải trước hoặc bằng ${checkInTime}`)
+          setLoading(false)
+          return
+        } else if (daysDiff > 1 && checkOutTime > checkInTime) {
+          showError(`Để đảm bảo đủ ${daysDiff} ngày, giờ check-out phải trước hoặc bằng ${checkInTime}`)
+          setLoading(false)
+          return
+        } else if (daysDiff === 0 && checkOutTime <= checkInTime) {
+          showError('Nếu cùng ngày, giờ check-out phải sau giờ check-in')
+          setLoading(false)
+          return
+        }
+        
+        // Tạo booking với dates và giờ đã chọn
         const bookingResponse = await bookingService.createBooking(Number(roomId), {
           checkInDate: checkIn,
+          checkInTime: checkInTime,
           checkOutDate: checkOut,
+          checkOutTime: checkOutTime,
         })
         
         if (bookingResponse.data) {
@@ -734,20 +795,27 @@ const Checkout = () => {
                     <input
                       type="date"
                       value={checkIn}
-                      onChange={(e) => {
-                        setCheckIn(e.target.value)
-                        // Nếu check-out nhỏ hơn hoặc bằng check-in mới, tự động cập nhật
-                        if (e.target.value >= checkOut) {
-                          const newCheckOut = new Date(e.target.value)
-                          newCheckOut.setDate(newCheckOut.getDate() + 1)
-                          setCheckOut(newCheckOut.toISOString().split('T')[0])
-                        }
-                      }}
+                      onChange={(e) => setCheckIn(e.target.value)}
                       min={new Date().toISOString().split('T')[0]}
                       disabled={loading}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                       required
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-gray-700">Giờ nhận phòng</label>
+                    <input
+                      type="time"
+                      value={checkInTime}
+                      onChange={(e) => setCheckInTime(e.target.value)}
+                      min={minCheckInTime}
+                      disabled={loading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      required
+                    />
+                    <p className={`text-xs mt-1 ${minCheckInTime !== '00:00' && minCheckInTime !== '14:00' ? 'text-orange-600 font-semibold' : 'text-gray-500'}`}>
+                      {checkInTimeMessage}
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700">Ngày trả phòng</label>
@@ -760,6 +828,51 @@ const Checkout = () => {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                       required
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-gray-700">Giờ trả phòng</label>
+                    <input
+                      type="time"
+                      value={checkOutTime}
+                      onChange={(e) => {
+                        const newCheckOutTime = e.target.value
+                        // Kiểm tra nếu khác ngày, checkOutTime phải <= checkInTime để không quá 1 ngày
+                        const checkInDate = new Date(checkIn)
+                        const checkOutDate = new Date(checkOut)
+                        const daysDiff = Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
+                        
+                        if (daysDiff === 1) {
+                          // Nếu cách nhau 1 ngày: checkOutTime phải <= checkInTime
+                          if (newCheckOutTime > checkInTime) {
+                            showError(`Để đảm bảo không quá 1 ngày, giờ check-out phải trước hoặc bằng ${checkInTime}`)
+                            return
+                          }
+                        } else if (daysDiff > 1) {
+                          // Nếu nhiều hơn 1 ngày: checkOutTime phải <= checkInTime
+                          if (newCheckOutTime > checkInTime) {
+                            showError(`Để đảm bảo đủ ${daysDiff} ngày, giờ check-out phải trước hoặc bằng ${checkInTime}`)
+                            return
+                          }
+                        } else if (daysDiff === 0) {
+                          // Cùng ngày: checkOutTime phải sau checkInTime
+                          if (newCheckOutTime <= checkInTime) {
+                            showError('Nếu cùng ngày, giờ check-out phải sau giờ check-in')
+                            return
+                          }
+                        }
+                        setCheckOutTime(newCheckOutTime)
+                      }}
+                      max={checkIn === checkOut ? undefined : checkInTime}
+                      disabled={loading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {checkIn === checkOut 
+                        ? 'Cùng ngày: giờ check-out phải sau giờ check-in'
+                        : `Để đảm bảo không quá ${nights} ngày, giờ check-out phải trước hoặc bằng ${checkInTime}`
+                      }
+                    </p>
                   </div>
                 </div>
                 
@@ -837,9 +950,13 @@ const Checkout = () => {
                               isInSelectedRange = dayNormalized >= checkInNormalized && dayNormalized < checkOutNormalized
                             }
                             
-                            // Check if this date is checkIn or checkOut
-                            const isCheckIn = checkIn && dayNormalized.toISOString().split('T')[0] === checkIn
-                            const isCheckOut = checkOut && dayNormalized.toISOString().split('T')[0] === checkOut
+                            // Check if this date is checkIn or checkOut (sử dụng local date string)
+                            const dayYear = dayNormalized.getFullYear()
+                            const dayMonth = String(dayNormalized.getMonth() + 1).padStart(2, '0')
+                            const dayDay = String(dayNormalized.getDate()).padStart(2, '0')
+                            const dayStr = `${dayYear}-${dayMonth}-${dayDay}`
+                            const isCheckIn = checkIn && dayStr === checkIn
+                            const isCheckOut = checkOut && dayStr === checkOut
                             
                             return (
                               <motion.div

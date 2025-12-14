@@ -4,13 +4,16 @@ import { motion } from 'framer-motion'
 import Header from '../components/Header'
 import RoomAvailability from '../components/RoomAvailability'
 import { hotelService } from '../services/hotelService'
+import { bookingService } from '../services/bookingService'
 import { useToast } from '../hooks/useToast'
 import { authService } from '../services/authService'
 import type { Hotel, Room } from '../services/hotelService'
 // Booking form data interface
 interface BookingFormData {
   checkIn: string
+  checkInTime: string // Format: "HH:mm" (mặc định "14:00", user tự chọn)
   checkOut: string
+  checkOutTime: string // Format: "HH:mm" (user tự chọn, nhưng phải đảm bảo không quá 1 ngày)
   adults: number
   children: number
   roomType: string
@@ -25,6 +28,8 @@ const Booking = () => {
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [minCheckInTime, setMinCheckInTime] = useState('00:00') // Cho phép chọn bất kỳ giờ nào
+  const [checkInTimeMessage, setCheckInTimeMessage] = useState('Bạn có thể chọn bất kỳ giờ nào (khuyến nghị từ 14:00)')
   const { showWarning, showError } = useToast()
   
   // Kiểm tra quyền đặt phòng
@@ -41,7 +46,9 @@ const Booking = () => {
   const roomIdParam = searchParams.get('roomId')
   const [formData, setFormData] = useState<BookingFormData>({
     checkIn: searchParams.get('checkIn') || new Date().toISOString().split('T')[0],
+    checkInTime: '14:00', // Mặc định 14:00
     checkOut: searchParams.get('checkOut') || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    checkOutTime: '11:00', // Mặc định 11:00
     adults: parseInt(searchParams.get('adults') || '2'),
     children: parseInt(searchParams.get('children') || '0'),
     roomType: roomIdParam || '',
@@ -80,6 +87,31 @@ const Booking = () => {
 
   const selectedRoom = rooms.find((r) => r.id.toString() === formData.roomType) || rooms[0]
 
+  // Lấy giờ check-in tối thiểu khi check-in date hoặc room thay đổi
+  useEffect(() => {
+    const fetchMinCheckInTime = async () => {
+      if (!selectedRoom || !formData.checkIn) return
+      
+      try {
+        const response = await bookingService.getMinCheckInTime(selectedRoom.id, formData.checkIn)
+        if (response.data) {
+          setMinCheckInTime(response.data.minCheckInTime)
+          setCheckInTimeMessage(response.data.message)
+          // Không tự động cập nhật checkInTime, để user tự chọn giờ
+        }
+      } catch (err) {
+        console.error('Error fetching min check-in time:', err)
+        // Fallback về mặc định
+        setMinCheckInTime('00:00') // Cho phép chọn bất kỳ giờ nào
+        setCheckInTimeMessage('Bạn có thể chọn bất kỳ giờ nào (khuyến nghị từ 14:00)')
+      }
+    }
+    
+    fetchMinCheckInTime()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.checkIn, selectedRoom?.id])
+
+  // Tính số đêm từ check-in và check-out
   const calculateNights = () => {
     const checkIn = new Date(formData.checkIn)
     const checkOut = new Date(formData.checkOut)
@@ -228,6 +260,20 @@ const Booking = () => {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-semibold mb-2">Giờ nhận phòng</label>
+                  <input
+                    type="time"
+                    value={formData.checkInTime}
+                    onChange={(e) => setFormData({ ...formData, checkInTime: e.target.value })}
+                    min={minCheckInTime}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                  <p className={`text-xs mt-1 ${minCheckInTime !== '00:00' && minCheckInTime !== '14:00' ? 'text-orange-600 font-semibold' : 'text-gray-500'}`}>
+                    {checkInTimeMessage}
+                  </p>
+                </div>
+                <div>
                   <label className="block text-sm font-semibold mb-2">Ngày trả phòng</label>
                   <input
                     type="date"
@@ -237,6 +283,50 @@ const Booking = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Giờ trả phòng</label>
+                  <input
+                    type="time"
+                    value={formData.checkOutTime}
+                    onChange={(e) => {
+                      const newCheckOutTime = e.target.value
+                      // Kiểm tra nếu khác ngày, checkOutTime phải <= checkInTime để không quá 1 ngày
+                      const checkInDate = new Date(formData.checkIn)
+                      const checkOutDate = new Date(formData.checkOut)
+                      const daysDiff = Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
+                      
+                      if (daysDiff === 1) {
+                        // Nếu cách nhau 1 ngày: checkOutTime phải <= checkInTime
+                        if (newCheckOutTime > formData.checkInTime) {
+                          showWarning(`Để đảm bảo không quá 1 ngày, giờ check-out phải trước hoặc bằng ${formData.checkInTime}`)
+                          return
+                        }
+                      } else if (daysDiff > 1) {
+                        // Nếu nhiều hơn 1 ngày: checkOutTime phải <= checkInTime
+                        if (newCheckOutTime > formData.checkInTime) {
+                          showWarning(`Để đảm bảo đủ ${daysDiff} ngày, giờ check-out phải trước hoặc bằng ${formData.checkInTime}`)
+                          return
+                        }
+                      } else if (daysDiff === 0) {
+                        // Cùng ngày: checkOutTime phải sau checkInTime
+                        if (newCheckOutTime <= formData.checkInTime) {
+                          showWarning('Nếu cùng ngày, giờ check-out phải sau giờ check-in')
+                          return
+                        }
+                      }
+                      setFormData({ ...formData, checkOutTime: newCheckOutTime })
+                    }}
+                    max={formData.checkIn === formData.checkOut ? undefined : formData.checkInTime}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.checkIn === formData.checkOut 
+                      ? 'Cùng ngày: giờ check-out phải sau giờ check-in'
+                      : `Để đảm bảo không quá ${nights} ngày, giờ check-out phải trước hoặc bằng ${formData.checkInTime}`
+                    }
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-2">Số người lớn</label>

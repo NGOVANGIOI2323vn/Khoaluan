@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -160,6 +160,8 @@ public class BookingService implements BookingServiceImpl {
             LocalDate today = LocalDate.now();
             LocalDate checkIn = dto.getCheckInDate();
             LocalDate checkOut = dto.getCheckOutDate();
+            LocalTime checkInTime = dto.getCheckInTime();
+            LocalTime checkOutTime = dto.getCheckOutTime();
             
             // Kiểm tra check-in phải từ tương lai (ít nhất là hôm nay)
             if (checkIn == null) {
@@ -169,39 +171,186 @@ public class BookingService implements BookingServiceImpl {
                 return httpResponseUtil.badRequest("Ngày check-in phải từ hôm nay trở đi, không được là ngày quá khứ");
             }
             
-            // Kiểm tra check-out phải sau check-in
+            // Kiểm tra check-out
             if (checkOut == null) {
                 return httpResponseUtil.badRequest("Ngày check-out không được để trống");
             }
-            if (checkOut.isBefore(checkIn) || checkOut.isEqual(checkIn)) {
-                return httpResponseUtil.badRequest("Ngày check-out phải sau ngày check-in");
+            if (checkOut.isBefore(checkIn)) {
+                return httpResponseUtil.badRequest("Ngày check-out phải sau hoặc bằng ngày check-in");
             }
+            
+            // Set mặc định giờ check-in nếu không có
+            if (checkInTime == null) {
+                checkInTime = LocalTime.of(14, 0); // Mặc định 14:00 (chỉ khi user không chọn)
+            }
+            
+            // Set mặc định giờ check-out nếu không có
+            if (checkOutTime == null) {
+                checkOutTime = LocalTime.of(11, 0); // Mặc định 11:00
+            }
+            
+            // Kiểm tra số ngày: không được quá 1 ngày
+            long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
+            if (checkOut.isEqual(checkIn)) {
+                // Cùng ngày: checkOutTime phải sau checkInTime
+                if (checkOutTime.isBefore(checkInTime) || checkOutTime.equals(checkInTime)) {
+                    return httpResponseUtil.badRequest("Nếu cùng ngày, giờ check-out phải sau giờ check-in");
+                }
+            } else if (daysBetween == 1) {
+                // Khác ngày 1 ngày: checkOutTime phải <= checkInTime để không quá 1 ngày
+                // Ví dụ: check-in 11h ngày 17, check-out phải <= 11h ngày 18 (đủ 1 ngày, không quá)
+                if (checkOutTime.isAfter(checkInTime)) {
+                    return httpResponseUtil.badRequest(
+                        String.format("Để đảm bảo không quá 1 ngày, giờ check-out phải trước hoặc bằng %02d:%02d (giờ check-in)",
+                            checkInTime.getHour(), checkInTime.getMinute())
+                    );
+                }
+            } else if (daysBetween > 1) {
+                // Nhiều hơn 1 ngày: checkOutTime phải <= checkInTime để đảm bảo đủ số ngày
+                if (checkOutTime.isAfter(checkInTime)) {
+                    return httpResponseUtil.badRequest(
+                        String.format("Để đảm bảo đủ %d ngày, giờ check-out phải trước hoặc bằng %02d:%02d (giờ check-in)",
+                            daysBetween, checkInTime.getHour(), checkInTime.getMinute())
+                    );
+                }
+            }
+            
+            // Kiểm tra xem có booking nào check-out vào ngày check-in không
+            // Nếu có, tính thời gian dọn phòng = checkOutTime + 2-3h
+            List<BookingEntity> bookingsCheckOutOnCheckInDate = bookingRepository.findBookingsCheckOutOnCheckInDate(
+                rooms.getId(), 
+                checkIn
+            );
+            
+            // Tìm booking check-out muộn nhất vào ngày check-in
+            LocalTime latestCheckOutTime = null;
+            if (bookingsCheckOutOnCheckInDate != null && !bookingsCheckOutOnCheckInDate.isEmpty()) {
+                for (BookingEntity booking : bookingsCheckOutOnCheckInDate) {
+                    if (booking.getCheckOutTime() != null) {
+                        if (latestCheckOutTime == null || booking.getCheckOutTime().isAfter(latestCheckOutTime)) {
+                            latestCheckOutTime = booking.getCheckOutTime();
+                        }
+                    }
+                }
+            }
+            
+            // Tính giờ check-in tối thiểu
+            // Chỉ validate nếu có booking check-out cùng ngày: minCheckInTime = latestCheckOutTime + 3h (thời gian dọn phòng 2-3h)
+            // Nếu không có booking check-out cùng ngày: cho phép chọn bất kỳ giờ nào
+            if (latestCheckOutTime != null) {
+                // Thời gian dọn phòng = checkOutTime + 3h (lấy 3h để an toàn)
+                LocalTime minCheckInTime = latestCheckOutTime.plusHours(3);
+                // Nếu sau 24h, chuyển sang ngày hôm sau (nhưng vẫn check cùng ngày)
+                if (minCheckInTime.isBefore(latestCheckOutTime)) {
+                    minCheckInTime = LocalTime.of(23, 59); // Tối đa trong ngày
+                }
+                
+                // Kiểm tra giờ check-in phải từ giờ tối thiểu trở đi (chỉ khi có booking check-out cùng ngày)
+                if (checkInTime.isBefore(minCheckInTime)) {
+                    String message = String.format("Giờ check-in phải từ %02d:%02d trở đi vì có booking check-out lúc %02d:%02d (cần 2-3 giờ dọn phòng)",
+                        minCheckInTime.getHour(), minCheckInTime.getMinute(),
+                        latestCheckOutTime.getHour(), latestCheckOutTime.getMinute());
+                    return httpResponseUtil.badRequest(message);
+                }
+            }
+            // Nếu không có booking check-out cùng ngày, cho phép chọn bất kỳ giờ nào
             
             // Kiểm tra phòng có available không (status = AVAILABLE)
             if (rooms.getStatus() != RoomsEntity.Status.AVAILABLE) {
                 return httpResponseUtil.badRequest("Phòng này hiện không khả dụng (đang bảo trì hoặc đã được đặt)");
             }
             
-            // Kiểm tra phòng có bị book trong khoảng thời gian này không
-            Long bookingCount = bookingRepository.countBookingsForRoomInDateRange(
-                rooms.getId(), 
-                checkIn, 
-                checkOut
-            );
+            // Kiểm tra phòng có bị book trong khoảng thời gian này không (tính cả giờ)
+            // Lấy tất cả bookings của room để kiểm tra overlap chi tiết
+            List<BookingEntity> existingBookings = bookingRepository.findByRoomId(rooms.getId());
             
-            if (bookingCount != null && bookingCount > 0) {
-                return httpResponseUtil.badRequest(
-                    "Phòng này đã được đặt trong khoảng thời gian từ " + checkIn + " đến " + checkOut + 
-                    ". Vui lòng chọn khoảng thời gian khác hoặc phòng khác."
-                );
+            // Tìm booking overlap và tính giờ check-in tối thiểu (tìm booking có check-out muộn nhất)
+            LocalDate latestOverlapCheckOutDate = null;
+            LocalTime latestOverlapCheckOutTime = null;
+            
+            // Kiểm tra overlap với từng booking
+            for (BookingEntity existingBooking : existingBookings) {
+                if (existingBooking.getStatus() != BookingEntity.BookingStatus.PENDING && 
+                    existingBooking.getStatus() != BookingEntity.BookingStatus.PAID) {
+                    continue; // Bỏ qua booking không active
+                }
+                
+                LocalDate existingCheckIn = existingBooking.getCheckInDate();
+                LocalDate existingCheckOut = existingBooking.getCheckOutDate();
+                LocalTime existingCheckInTime = existingBooking.getCheckInTime() != null 
+                    ? existingBooking.getCheckInTime() : LocalTime.of(14, 0);
+                LocalTime existingCheckOutTime = existingBooking.getCheckOutTime() != null 
+                    ? existingBooking.getCheckOutTime() : LocalTime.of(11, 0);
+                
+                // Kiểm tra overlap: 
+                // 1. Nếu check-out của booking cũ < check-in của booking mới (cả date và time) -> OK
+                // 2. Nếu check-in của booking cũ > check-out của booking mới (cả date và time) -> OK
+                // 3. Nếu cùng ngày check-out = check-in, cần kiểm tra thời gian dọn phòng
+                
+                boolean isOverlap = false;
+                
+                // Trường hợp 1: Booking mới check-in trước khi booking cũ check-out
+                if (checkIn.isBefore(existingCheckOut) || 
+                    (checkIn.isEqual(existingCheckOut) && checkInTime.isBefore(existingCheckOutTime.plusHours(3)))) {
+                    // Cần kiểm tra xem booking mới có check-out sau khi booking cũ check-in không
+                    if (checkOut.isAfter(existingCheckIn) || 
+                        (checkOut.isEqual(existingCheckIn) && checkOutTime.isAfter(existingCheckInTime))) {
+                        isOverlap = true;
+                    }
+                }
+                
+                // Trường hợp 2: Booking mới check-out sau khi booking cũ check-in
+                if (checkOut.isAfter(existingCheckIn) || 
+                    (checkOut.isEqual(existingCheckIn) && checkOutTime.isAfter(existingCheckInTime))) {
+                    // Cần kiểm tra xem booking mới có check-in trước khi booking cũ check-out không
+                    if (checkIn.isBefore(existingCheckOut) || 
+                        (checkIn.isEqual(existingCheckOut) && checkInTime.isBefore(existingCheckOutTime.plusHours(3)))) {
+                        isOverlap = true;
+                    }
+                }
+                
+                if (isOverlap) {
+                    // Tìm booking có check-out muộn nhất để tính giờ check-in tối thiểu
+                    if (latestOverlapCheckOutDate == null || 
+                        existingCheckOut.isAfter(latestOverlapCheckOutDate) ||
+                        (existingCheckOut.isEqual(latestOverlapCheckOutDate) && 
+                         existingCheckOutTime.isAfter(latestOverlapCheckOutTime))) {
+                        latestOverlapCheckOutDate = existingCheckOut;
+                        latestOverlapCheckOutTime = existingCheckOutTime;
+                    }
+                }
+            }
+            
+            // Nếu có overlap, tính giờ check-in tối thiểu và trả về thông báo
+            if (latestOverlapCheckOutDate != null && latestOverlapCheckOutTime != null) {
+                // Tính giờ check-in tối thiểu: checkOutTime + 2h
+                LocalTime minCheckInTimeFromOverlap = latestOverlapCheckOutTime.plusHours(2);
+                LocalDate minCheckInDate = latestOverlapCheckOutDate;
+                
+                // Nếu sau 24h, chuyển sang ngày hôm sau
+                if (minCheckInTimeFromOverlap.isBefore(latestOverlapCheckOutTime)) {
+                    minCheckInDate = latestOverlapCheckOutDate.plusDays(1);
+                    minCheckInTimeFromOverlap = LocalTime.of(0, 0);
+                }
+                
+                String message;
+                if (minCheckInDate.isEqual(checkIn)) {
+                    // Cùng ngày check-in, chỉ cần hiển thị giờ
+                    message = String.format("Vui lòng chọn giờ check-in từ %02d:%02d trở đi (cần 2 giờ dọn phòng sau booking trước)",
+                        minCheckInTimeFromOverlap.getHour(), minCheckInTimeFromOverlap.getMinute());
+                } else {
+                    // Khác ngày, hiển thị cả ngày và giờ
+                    message = String.format("Vui lòng chọn check-in từ ngày %s lúc %02d:%02d trở đi (cần 2 giờ dọn phòng sau booking trước)",
+                        minCheckInDate, minCheckInTimeFromOverlap.getHour(), minCheckInTimeFromOverlap.getMinute());
+                }
+                return httpResponseUtil.badRequest(message);
             }
             
             // Tính số ngày và giá
-            long days = ChronoUnit.DAYS.between(checkIn, checkOut);
+            long days = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
             if (days <= 0) {
                 days = 1;
             }
-            
             Double payment = rooms.getPrice() - (rooms.getPrice() * rooms.getDiscountPercent());
             payment *= days;
             BigDecimal paymentBigDecimal = new BigDecimal(payment);
@@ -214,6 +363,8 @@ public class BookingService implements BookingServiceImpl {
             booking.setBookingDate(LocalDateTime.now());
             booking.setCheckInDate(checkIn);
             booking.setCheckOutDate(checkOut);
+            booking.setCheckInTime(checkInTime);
+            booking.setCheckOutTime(checkOutTime);
             booking.setTotalPrice(paymentBigDecimal);
             booking.setStatus(BookingEntity.BookingStatus.PENDING);
             
@@ -286,6 +437,55 @@ public class BookingService implements BookingServiceImpl {
             return httpResponseUtil.ok("Get bookings by room success", bookings);
         } catch (Exception e) {
             return httpResponseUtil.error("Error getting bookings by room", e);
+        }
+    }
+    
+    // Lấy giờ check-in tối thiểu cho một room vào ngày cụ thể
+    // Nếu có booking check-out vào ngày đó, thì check-in = checkOutTime + 3h (thời gian dọn phòng 2-3h)
+    // Nếu không có, cho phép chọn bất kỳ giờ nào (không bắt buộc 14:00)
+    public ResponseEntity<Apireponsi<java.util.Map<String, Object>>> getMinCheckInTime(Long roomId, LocalDate checkInDate) {
+        try {
+            List<BookingEntity> bookingsCheckOutOnCheckInDate = bookingRepository.findBookingsCheckOutOnCheckInDate(roomId, checkInDate);
+            
+            // Tìm booking check-out muộn nhất vào ngày check-in
+            LocalTime latestCheckOutTime = null;
+            if (bookingsCheckOutOnCheckInDate != null && !bookingsCheckOutOnCheckInDate.isEmpty()) {
+                for (BookingEntity booking : bookingsCheckOutOnCheckInDate) {
+                    if (booking.getCheckOutTime() != null) {
+                        if (latestCheckOutTime == null || booking.getCheckOutTime().isAfter(latestCheckOutTime)) {
+                            latestCheckOutTime = booking.getCheckOutTime();
+                        }
+                    }
+                }
+            }
+            
+            java.util.Map<String, Object> result = new java.util.HashMap<>();
+            result.put("hasCheckoutOnSameDate", latestCheckOutTime != null);
+            
+            if (latestCheckOutTime != null) {
+                // Tính giờ check-in tối thiểu = checkOutTime + 3h (thời gian dọn phòng)
+                LocalTime minCheckInTime = latestCheckOutTime.plusHours(3);
+                // Nếu sau 24h, giới hạn ở 23:59
+                if (minCheckInTime.isBefore(latestCheckOutTime)) {
+                    minCheckInTime = LocalTime.of(23, 59);
+                }
+                
+                String minCheckInTimeStr = String.format("%02d:%02d", minCheckInTime.getHour(), minCheckInTime.getMinute());
+                String latestCheckOutTimeStr = String.format("%02d:%02d", latestCheckOutTime.getHour(), latestCheckOutTime.getMinute());
+                
+                result.put("minCheckInTime", minCheckInTimeStr);
+                result.put("latestCheckOutTime", latestCheckOutTimeStr);
+                result.put("message", String.format("Có booking check-out lúc %s vào ngày này, check-in phải từ %s trở đi (cần 2-3 giờ dọn phòng)",
+                    latestCheckOutTimeStr, minCheckInTimeStr));
+            } else {
+                // Không có booking check-out cùng ngày: cho phép chọn bất kỳ giờ nào
+                result.put("minCheckInTime", "00:00"); // Không giới hạn
+                result.put("message", "Bạn có thể chọn bất kỳ giờ nào (không có booking check-out cùng ngày)");
+            }
+            
+            return httpResponseUtil.ok("Get min check-in time success", result);
+        } catch (Exception e) {
+            return httpResponseUtil.error("Error getting min check-in time", e);
         }
     }
     
